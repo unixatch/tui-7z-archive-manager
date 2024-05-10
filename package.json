@@ -1,0 +1,36 @@
+{
+  "name": "7z-archive-cleaner",
+  "version": "1.0.0",
+  "description": "Allows you to clean an archive .7z",
+  "homepage": "",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "bugs": "",
+  "keywords": [
+    "clean",
+    "cleaner",
+    "archive",
+    "7z"
+  ],
+  "preferGlobal": true,
+  "main": "7z-cleaner.mjs",
+  "bin": {
+    "tuiRetroarchTD": "7z-cleaner.mjs"
+  },
+  "scripts": {
+    "test": "node 7z-cleaner.mjs"
+  },
+  "author": "unixatch",
+  "license": "GPL-2.0-or-later",
+  "dependencies": {
+    "@inquirer/confirm": "^2.0.12",
+    "@inquirer/editor": "^2.1.6",
+    "@inquirer/input": "^2.1.6",
+    "@inquirer/select": "^2.3.2",
+    "@willowmt/inquirer-tree-prompt": "^1.1.3",
+    "inquirer": "^9.2.10",
+    "inquirer-file-tree-selection-prompt": "^2.0.5"
+  }
+}
