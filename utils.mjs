@@ -19,6 +19,7 @@ function declareColors() {
   global.normalRed= "\x1b[31m"
   global.red= "\x1b[31;1m"
   global.dimRed= "\x1b[31;2m"
+  global.gray= "\x1b[90;1m"
   global.dimGray= "\x1b[37;2m"
   global.dimGrayBold= "\x1b[37;2;1m"
 }
@@ -46,26 +47,28 @@ const addRemove_Keypress = (request, prompt) => {
   if (typeof request !== "string") throw new TypeError("Only strings are allowed");
   if (!prompt instanceof Promise) throw new TypeError("Only prompts are allowed");
   const completeEvent = (_, key) => {
-    if (key.ctrl) {
-      switch (key.name) {
-        case "q":
-          process.stdin.removeAllListeners("keypress")
-          prompt.ui.close()
-          process.exit();
-          break;
-        case "d":
-          prompt.ui.close()
-          global.command = "deleteCommand";
-          break;
-        case "c":
-          prompt.ui.close()
-          global.command = "cutCommand";
-          break;
-        case "a":
-          prompt.ui.close()
-          global.command = "addCommand";
-          break;
-      }
+    if (key.ctrl && key.name === "q") {
+      process.stdin.removeAllListeners("keypress")
+      prompt.ui.close()
+      process.exit();
+    }
+    switch (key.name) {
+      case "d":
+        prompt.ui.close()
+        global.command = "deleteCommand";
+        break;
+      case "c":
+        prompt.ui.close()
+        global.command = "cutCommand";
+        break;
+      case "a":
+        prompt.ui.close()
+        global.command = "addCommand";
+        break;
+      case "e":
+        prompt.ui.close()
+        global.command = "extractCommand";
+        break;
     }
   }
   const quitPress = (_, key) => {
@@ -116,12 +119,13 @@ const __dirname = dirname(__filename2);
 class TreePrompt extends oldTreePrompt {
   constructor(questions, rl, answers) {
 		super(questions, rl, answers);
+		this.value = ""
   }
   valueFor(node) {
 		return typeof node?.value !=='undefined' ? node?.value : node?.name;
 	}
-  close(isCommand = false) {
-    this.onSubmit();
+  close() {
+    this.onSubmit(this);
   }
 }
 
