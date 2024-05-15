@@ -1,13 +1,23 @@
 #!/usr/bin/env node
 import { tmpdir } from "os"
 import { 
-  lstatSync, 
-  existsSync, 
+  lstatSync,
+  readdirSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  writeFileSync,
+  renameSync,
   rmSync
 } from "fs"
-import { sep, extname, resolve } from "path"
+import { 
+  sep,
+  parse,
+  basename,
+  extname,
+  dirname,
+  resolve
+} from "path"
 import { platform } from "process"
 import { execSync } from "child_process"
 
@@ -20,27 +30,31 @@ import {
 } from "./utils.mjs"
 
 import inquirer from "inquirer"
+import PressToContinuePrompt from 'inquirer-press-to-continue';
 import inquirerFileTreeSelection from "inquirer-file-tree-selection-prompt"
 inquirer.registerPrompt("file-tree-selection", inquirerFileTreeSelection)
 inquirer.registerPrompt("tree", TreePrompt)
+inquirer.registerPrompt('press-to-continue', PressToContinuePrompt);
 const asyncImports = {
   select: "",
   input: "",
-  confirm: ""
+  confirm: "",
+  editor: ""
 }
 
 
 const validateSelection = selected => {
   if (!lstatSync(selected).isFile()) {
     return "This isn't even a file";
-  } else if (extname(selected) !== ".7z") {
-    return "It's not a 7z archive";
+  } 
+  if (!/^\.(?:7z|zip|gz|gzip|tgz|bz2|bzip2|tbz2|tbz|tar)$/m.test(extname(selected))) {
+    return "It's not a supported archive";
   }
   return true;
 }
 let archiveFile = await inquirer.prompt({
   type: "file-tree-selection",
-  message: "Pick the archive destination:",
+  message: "Choose an archive:",
   name: "selected",
   pageSize: 20,
   enableGoUpperDirectory: true,
@@ -50,13 +64,13 @@ let archiveFile = await inquirer.prompt({
 let listOfArchive;
 if (platform === "android" || platform === "darwin" || platform === "linux") {
   listOfArchive = execSync(`
-    7z l -slt ${archiveFile.selected} |
+    7z l -slt "${archiveFile.selected}" |
     tail -n +18 |
     grep -Eo "Path.*|Attributes.*"
     `).toString();
 } else if (platform === "win32") {
   listOfArchive = execSync(`
-    7z l -slt ${archiveFile.selected} |
+    7z l -slt "${archiveFile.selected}" |
     tail -n +18 |
     grep -Eo "Path.*|Attributes.*"
     `, {
@@ -64,7 +78,7 @@ if (platform === "android" || platform === "darwin" || platform === "linux") {
     }).toString();
 } else {
   listOfArchive = execSync(`
-    7z l -slt ${archiveFile.selected} |
+    7z l -slt "${archiveFile.selected}" |
     tail -n +18 |
     grep -Eo "Path.*|Attributes.*"
     `).toString();
@@ -95,11 +109,13 @@ function recursivelyMappingSubdirectories(arrayOfFolderPaths, wantToSearchInFile
 
   arrayOfFolderPaths.forEach((path) => {
     const name = path.replace(/^.*\//, "");
+    // This regex checks for subdirectories
     const pattern = (wantToSearchInFiles) ? new RegExp(`^(${escapeRegExp(path)}\\/[^\\/]*)\\/[^\\/]*$`, "m") : new RegExp(`^${escapeRegExp(path)}\\/[^\\/]*$`, "m");
 
     let subDirectoriesIn = ogArrayList.filter((path) => {
       if (pattern.test(path)) {
         if (wantToSearchInFiles) {
+          // Prevents duplicates
           path = path.match(pattern)[1];
           if (subDirectories.find(p => p === path)) return false;
         }
@@ -109,6 +125,12 @@ function recursivelyMappingSubdirectories(arrayOfFolderPaths, wantToSearchInFile
       return false;
     })
 
+    if (wantToSearchInFiles
+        && path.match(/^[^\/]*$/m) !== null) {
+      const surface = mappedFSStructure.get("surface");
+      const newSurface = [...surface, path];
+      mappedFSStructure.set("surface", newSurface);
+    }
     if (subDirectoriesIn.length === 0) {
       mappedFSStructure.set(name, {
         name: name,
@@ -119,11 +141,8 @@ function recursivelyMappingSubdirectories(arrayOfFolderPaths, wantToSearchInFile
     }
 
     if (wantToSearchInFiles) {
-      if (path.match(/^[^\/]*$/m) !== null) {
-        const surface = mappedFSStructure.get("surface");
-        const newSurface = [...surface, path];
-        mappedFSStructure.set("surface", newSurface);
-      }
+      // Strips out the filename, 
+      // leaving the subdirectory path
       subDirectoriesIn = subDirectoriesIn.map((path) => {
         const subDir = path.match(pattern);
         if (subDir !== null) return subDir[1];
@@ -141,16 +160,23 @@ function mappingFiles() {
   onlyFiles.forEach((path) => {
     const subFileName = path.replace(/^.*\//, "");
     const pattern = new RegExp(
-      `([^\\/]*)\\/?${escapeRegExp(subFileName)}$`, "m"
+      `([^\\/]*)\\/${escapeRegExp(subFileName)}$`, "m"
     );
     const isInside = path.match(pattern);
 
+    // Makes sure that it's not inside a directory
     if (isInside === null || isInside[1] === "") {
       const newSurfaceArray = [...mappedFSStructure.get("surface"), path];
       mappedFSStructure.set("surface", newSurfaceArray)
       return;
     }
 
+    /*
+      Tries to add the file inside the correct subfolder name in the Map(),
+      but if it fails, it goes out to create the missing directory then tries again
+      (this doesn't trigger if the error isn't 
+      what's expected to be and it's a different error)
+    */
     try {
       const entryObject = mappedFSStructure.get(isInside[1]);
       const newSubDirChildren = [...entryObject.children, subFileName];
@@ -190,9 +216,8 @@ const surface = [
 ];
 
 surface[0].forEach((path) => {
-  const subFileName = path.replace(/^.*\//, "");
-  mappedFSStructure.set(subFileName, {
-    name: subFileName,
+  mappedFSStructure.set(path, {
+    name: path,
     path: path,
     children: []
   })
@@ -217,7 +242,7 @@ function createDirectoryLister(dir) {
 		.map((item) => {
 		  const contents = mappedFSStructure.get(item.replace(/^.*\//m, ""));
 			const isDirectory = (contents) ? true : false;
-			let resolved = item;
+			let resolved = item+sep;
 			
 			if (!isDirectory) {
 			  resolved = (currentDir instanceof Array) ? item : currentDir.path+sep+item;
@@ -238,7 +263,7 @@ function createDirectoryLister(dir) {
 
 const thingsToClean = inquirer.prompt({
   type: "tree",
-  message: "Which ones to clean?",
+  message: "Archive: "+archiveFile.selected,
   name: "selected",
   multiple: true,
   pageSize: 20,
@@ -266,27 +291,55 @@ thingsToClean.then(async (list) => {
         message: 'Confirm deletion of selected 📄/📂?',
         default: false
       });
-      if (!answer) {
-        // Quando è falso
-        return "<loopa lista>";
-      }
-      process.exit()
+      if (!answer) return;
       
-      const deletion = execSync(`
-        7z d ${archiveFile.selected} ${
+      return execSync(`
+        7z d "${archiveFile.selected}" ${
           list.selected
             .map(str => `"${str}"`) // Because of spaces
             .join(" ") // Because of defaults
         }
-      `).toString();
-      return "<loopa lista>";
+      `);
     }
     case "cutCommand": {
       addRemove_Keypress("close");
-      console.log("\nMove command", list.selected)
-      return;
+      delete global.command
+      surfaceCount = 0;
+      const surface = mappedFSStructure.get("surface");
+      const temporaryNewSurface = [".", ...surface];
+      mappedFSStructure.set("surface", temporaryNewSurface)
+      
+      const newLocation = await inquirer.prompt({
+        type: "tree",
+        message: `Select the new location to move to:\n${gray}(selecting . = top-level of the archive)`,
+        name: "selected",
+        pageSize: 20,
+        multiple: false,
+        tree: createDirectoryLister("surface"),
+        validate: (str) => {
+          if (str.endsWith(sep) || str === ".") return true;
+          return "Only directories are allowed"
+        },
+        onlyShowValid: true
+      })
+      // Cleans the gray text and message duplicate
+      clearLastLines([0, -3])
+      mappedFSStructure.set("surface", surface)
+      // Moving part
+      list.selected.forEach((path) => {
+        if (newLocation.selected === ".") {
+          return execSync(`
+            7z rn "${archiveFile.selected}" "${path}" "${basename(path)}"
+          `)
+        }
+        execSync(`
+          7z rn "${archiveFile.selected}" ${path} ${newLocation.selected+basename(path)}
+        `)
+      })
+      return
     }
     case "addCommand": {
+      delete global.command
       if (asyncImports.select === "") {
         const { default: select } = await import("@inquirer/select");
         asyncImports.select = select;
@@ -312,24 +365,93 @@ thingsToClean.then(async (list) => {
         ]
       })
       if (action === "file-selection") {
-        let fromFs = await inquirer.prompt({
-          type: "file-tree-selection",
-          message: "Pick the file or folder:",
-          name: "selection",
-          pageSize: 20,
-          enableGoUpperDirectory: true,
-          multiple: true
-        })
-        execSync(`
-          7z a ${archiveFile.selected} ${
+        // Recursive function to prevent an empty selection
+        async function getFromFs() {
+          let fromFs = await inquirer.prompt({
+            type: "file-tree-selection",
+            message: "Pick the file or folder:",
+            name: "selection",
+            pageSize: 20,
+            enableGoUpperDirectory: true,
+            multiple: true
+          })
+          if (fromFs.selection.length === 0) {
+            // Removes empty array line
+            clearLastLines([0, -1]);
+            await inquirer.prompt({
+              name: "key",
+              type: "press-to-continue",
+              anyKey: true,
+              pressToContinueMessage: yellow+"You have to select something..."+normal
+            })
+            clearLastLines([0, -1]);
+            return getFromFs();
+          }
+          return fromFs;
+        }
+        let fromFs = await getFromFs();
+        return execSync(`
+          7z a "${archiveFile.selected}" ${
             fromFs.selection
               .map(str => `"${str}"`) // Because of spaces
               .join(" ") // Because of defaults
           }
-        `)
+        `);
       }
       if (action === "create-file") {
+        if (asyncImports.editor === "") {
+          const { default: editor } = await import("@inquirer/editor");
+          asyncImports.editor = editor;
+        }
+        if (asyncImports.input === "") {
+          const { default: input } = await import("@inquirer/input");
+          asyncImports.input = input;
+        }
+        const filename = await asyncImports.input({
+          message: "Insert the filename that you want to create: ",
+          validate: (str) => {
+            if (/^\s*$/m.test(str)) return "Write down something at least"
+            if (dirname(str) === "/") return "Cannot use a single / as directory name"
+
+            if (extname(str) && extname(str) !== ".") return true;
+            return "Input given is not valid"
+          }
+        })
+        const fileContent = await asyncImports.editor({
+          message: "Creating a new file",
+          postfix: `${extname(filename)}`,
+          waitForUseInput: false
+        })
         
+        // Creation part
+        const dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
+        if (dirname(filename) !== ".") {
+          mkdirSync(
+            resolve(dedicatedTmpDir, dirname(filename)), 
+            { recursive: true }
+          )
+          writeFileSync(
+            resolve(dedicatedTmpDir, filename), 
+            fileContent
+          );
+        } else {
+          if (!existsSync(dedicatedTmpDir)) {
+            dedicatedTmpDir = mkdirSync(dedicatedTmpDir);
+          }
+          writeFileSync(
+            resolve(dedicatedTmpDir, filename),
+            fileContent
+          )
+        }
+        execSync(`
+          7z a "${archiveFile.selected}" ${dedicatedTmpDir}/*
+        `)
+        
+        const filenamePathToRemove = (dirname(filename) !== ".") ? filename.match(/^[^\\/]*/m)[0] : filename;
+        return rmSync(
+          resolve(dedicatedTmpDir, filenamePathToRemove),
+          { recursive: true }
+        );
       }
       if (action === "create-folder") {
         if (asyncImports.input === "") {
@@ -353,31 +475,59 @@ thingsToClean.then(async (list) => {
             return str;
           }
         });
-        console.log(answer); process.exit()
-        let dedicatedTmpDir;
-        if (!existsSync(dedicatedTmpDir)) {
-          dedicatedTmpDir = mkdtempSync(
-            resolve(tmpdir(), "7z-cleaner-")
-          );
-        }
+        
+        const dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
         mkdirSync(
           resolve(dedicatedTmpDir, answer), 
           { recursive: true }
         )
         execSync(`
-          7z a ${archiveFile.selected} ${dedicatedTmpDir}/*
+          7z a "${archiveFile.selected}" ${dedicatedTmpDir}/*
         `)
-        rmSync(
+        // Deletes only the user-requested directories,
+        // not "dedicatedTmpDir"
+        return rmSync(
           resolve(dedicatedTmpDir, answer.match(/^[^\\/]*/m)[0]),
           { recursive: true }
         );
       }
-        /* 
-          magari mostrare una scelta tra:
-            - https://github.com/SBoudrias/Inquirer.js/tree/main/packages/editor#installation;
-            - Select a file from file-tree-selection;
-            - Crea una nuova cartella con @nquirer/input;
-        */
+    }
+    case "extractCommand": {
+      if (asyncImports.confirm === "") {
+        const { default: confirm } = await import("@inquirer/confirm");
+        asyncImports.confirm = confirm;
+      }
+      const answer = await asyncImports.confirm({ 
+        message: 'Extract alongside the archive (y) or elsewhere (n)?',
+        default: true
+      });
+      
+      const specificThings = (list.selected.length > 0) ? list.selected.map(str => `"${str}"`).join(" ") : "";
+      if (answer) {
+        execSync(`7z x "${archiveFile.selected}" ${specificThings} -o${
+          resolve(
+            dirname(archiveFile.selected), 
+            "extracted_"+parse(archiveFile.selected).name+"_"+Math.floor(Math.random() * 1000000)
+          )
+        }`)
+      } else {
+        const extractLocation = await inquirer.prompt({
+          type: "file-tree-selection",
+          message: "Pick the extraction destination:",
+          name: "selected",
+          pageSize: 20,
+          enableGoUpperDirectory: true,
+          onlyShowDir: true
+        })
+        execSync(`
+          7z x "${archiveFile.selected}" ${specificThings} -o"${
+            resolve(
+              extractLocation.selected, 
+              "extracted_"+parse(archiveFile.selected).name+"_"+Math.floor(Math.random() * 1000000)
+            )
+          }"
+        `)
+      }
       return;
     }
     
@@ -385,22 +535,13 @@ thingsToClean.then(async (list) => {
       addRemove_Keypress("close");
       // Because prompt line gets repeated once
       clearLastLines([0, -1]);
-      // In case the user selected nothing 
-      // and pressed enter
-      if (list.selected.length < 1) {
-        return console.log(normalYellow+"Empty list was selected, exiting..."+normal)
-        /*
-            Magari invece che di ritornare subito,
-            in automatico si presume che si vuole aggiungere❓
-        */
-      }
-      
       if (asyncImports.select === "") {
         const { default: select } = await import("@inquirer/select");
         asyncImports.select = select;
       }
+      
       const command = await asyncImports.select({
-        message: "Choose how do you want to add:",
+        message: "Choose what to do:",
         choices: [
           {
             name: "Add command",
@@ -416,6 +557,11 @@ thingsToClean.then(async (list) => {
             name: "Delete command",
             value: "delete-command",
             description: "Delete the selected 📄/📂 from the archive"
+          },
+          {
+            name: "Extract command",
+            value: "extract-command",
+            description: "Extract the selected 📄/📂 from the archive"
           }
         ]
       })
@@ -428,6 +574,9 @@ thingsToClean.then(async (list) => {
           break;
         case 'delete-command':
           console.log("Funzione delete-command");
+          break;
+        case 'extract-command':
+          console.log("Funzione extract-command");
           break;
       }
   }
