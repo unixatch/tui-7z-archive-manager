@@ -1,4 +1,5 @@
 import { readFileSync } from "fs"
+import { spawn } from "child_process"
 import { dirname } from "path"
 import { fileURLToPath } from "url"
 import inquirer from "inquirer"
@@ -116,6 +117,35 @@ let __filename2 = fileURLToPath(import.meta.url);
 const getCurrentFileName = loc => fileURLToPath(loc);
 const __dirname = dirname(__filename2);
 
+function getStringList(archiveFilePath) {
+  if (archiveFilePath === undefined) {
+    return new Error("A file path is required")
+  }
+  return new Promise((resolve, reject) => {
+    let dataStdout, dataStderr;
+    const stream = spawn("7z", ["l", "-slt", archiveFilePath], { windowsHide: true });
+    
+    // When goes good
+    stream.stdout.on("data", data => {
+      dataStdout += data.toString();
+    })
+    stream.on("close", returnCode => {
+      return (returnCode > 0)
+        // Or bad after it started
+        ? reject(new Error(dataStderr)) 
+        : resolve(dataStdout);
+    })
+    
+    // When goes bad
+    stream.stderr.on("data", err => {
+      dataStderr += err.toString();
+    })
+    stream.on("error", err => {
+      reject(err)
+    })
+  })
+}
+
 class TreePrompt extends oldTreePrompt {
   constructor(questions, rl, answers) {
 		super(questions, rl, answers);
@@ -139,5 +169,6 @@ export {
   strLimit,
   addRemove_Keypress,
   clearLastLines,
+  getStringList,
   TreePrompt
 }
