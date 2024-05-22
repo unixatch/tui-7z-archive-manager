@@ -23,16 +23,16 @@ import { execSync } from "child_process"
 
 import {
   escapeRegExp,
-  declareColors,
   clearLastLines,
   addRemove_Keypress,
   getStringList,
-  TreePrompt
+  promptWithKeyPress,
+  TreePrompt,
+  inquirerFileTreeSelection
 } from "./utils.mjs"
 
 import inquirer from "inquirer"
 import PressToContinuePrompt from 'inquirer-press-to-continue';
-import inquirerFileTreeSelection from "inquirer-file-tree-selection-prompt"
 inquirer.registerPrompt("file-tree-selection", inquirerFileTreeSelection)
 inquirer.registerPrompt("tree", TreePrompt)
 inquirer.registerPrompt('press-to-continue', PressToContinuePrompt);
@@ -47,22 +47,26 @@ let onlyDirectories,
     mappedFSStructure;
 
 async function getArchivePath() {
-  let archiveFile = await inquirer.prompt({
-    type: "file-tree-selection",
-    message: "Choose an archive:",
-    name: "selected",
-    pageSize: 20,
-    enableGoUpperDirectory: true,
-    validate: selected => {
-      if (!lstatSync(selected).isFile()) {
-        return "This isn't even a file";
-      } 
-      if (!/^\.(?:7z|zip|gz|gzip|tgz|bz2|bzip2|tbz2|tbz|tar)$/m.test(extname(selected))) {
-        return "It's not a supported archive";
+  const archiveFile = await promptWithKeyPress("quitOnly", () => {
+    return inquirer.prompt({
+      type: "file-tree-selection",
+      message: "Choose an archive:",
+      name: "selected",
+      pageSize: 20,
+      enableGoUpperDirectory: true,
+      validate: selected => {
+        if (!lstatSync(selected).isFile()) {
+          return "This isn't even a file";
+        } 
+        if (!/^\.(?:7z|zip|gz|gzip|tgz|bz2|bzip2|tbz2|tbz|tar|rar|cab|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chw|hxs|iso|msi|doc|xls|ppt|wim|swm|exe)$/m.test(extname(selected))) {
+          return "It's not a supported archive";
+        }
+        return true;
       }
-      return true;
-    }
-  })
+    })
+  });
+  addRemove_Keypress("close")
+  clearLastLines([0, -1])
   return archiveFile;
 }
 async function createMap(archiveFilePassed) {
@@ -76,14 +80,23 @@ async function createMap(archiveFilePassed) {
   
   let listOfArchive = await getStringList(archiveFile.selected);
   listOfArchive = listOfArchive
-      // Removes 18 lines from the start
-    .replace(/(?:.*\n){18}/, "")
+      // Removes useless lines from the start 
+      // with Single line flag included
+    .replace(/^7-Zip.*[-]{2}.*\n[-]{10}/sm, "")
       // Gets only Paths and the Attributes
-    .replaceAll(/^(?!Path.*|Attributes.*).*\n?/gm, "");
+      // or Paths and Folder check in case it's not 7z
+    .replaceAll(
+      (extname(archiveFile.selected) === ".7z")
+        ? /^(?!Path.*|Attributes.*).*\n?/gm
+        : /^(?!Path.*|Folder.*).*\n?/gm, "");
 
   const regexes = [
-    /Path = (.*)\nAttributes = D_/g,
-    /Path = (.*)\nAttributes = A_/g
+    (extname(archiveFile.selected) === ".7z") 
+      ? /Path = (.*)\nAttributes = D_/g // 7zip
+      : /Path = (.*)\nFolder = \+/g, // Others
+    (extname(archiveFile.selected) === ".7z") 
+      ? /Path = (.*)\nAttributes = A_/g // 7zip
+      : /Path = (.*)\nFolder = -/g // Others
   ]
   mappedFSStructure = new Map();
   onlyDirectories = Array.from(
@@ -267,12 +280,24 @@ async function mainMenu(refresh, archiveFilePassed) {
   if (firstTime) {
     archiveFile = await createMap();
     firstTime = false;
+    // Limited support message for certain archives
+    if (/^\.(?:rar|cab|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chw|hxs|iso|msi|doc|xls|ppt|wim|swm|exe)$/m.test(extname(archiveFile.selected))) {
+      console.log(dimYellow+`The archive ${italics+basename(archiveFile.selected)+normal+dimYellow} has limited support from 7zip`+normal);
+    }
   }
+  // Recreates the entire Map()
   if (refresh
       && archiveFilePassed instanceof Object) {
     clearLastLines([0, -1])
     surfaceCount = 0;
     archiveFile = await createMap(archiveFilePassed);
+  }
+  // Uses the already available Map()
+  if (!refresh
+      && archiveFilePassed instanceof Object) {
+    clearLastLines([0, -1])
+    surfaceCount = 0;
+    archiveFile = archiveFilePassed;
   }
   if (archiveFilePassed !== undefined 
       && !archiveFilePassed instanceof Object) {
@@ -290,27 +315,31 @@ async function mainMenu(refresh, archiveFilePassed) {
   addRemove_Keypress("complete", thingsToClean);
   
   thingsToClean.then(async (list) => {
+    addRemove_Keypress("close")
     // Shortcuts
     switch (global.command) {
       case "deleteCommand": 
         await deleteCommand(list, archiveFile)
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
         mainMenu(true, archiveFile)
         return;
       case "cutCommand":
         await cutCommand(list, archiveFile)
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
         mainMenu(true, archiveFile)
         return;
       case "addCommand":
         await addCommand(list, archiveFile)
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
         mainMenu(true, archiveFile)
         return;
       case "extractCommand":
         await extractCommand(list, archiveFile)
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
         mainMenu(true, archiveFile)
         return;
       
       default:
-        addRemove_Keypress("close");
         // Because prompt line gets repeated once
         clearLastLines([0, -1]);
         if (asyncImports.select === "") {
@@ -318,31 +347,42 @@ async function mainMenu(refresh, archiveFilePassed) {
           asyncImports.select = select;
         }
         
-        const command = await asyncImports.select({
-          message: "Choose what to do:",
-          choices: [
-            {
-              name: "Add command",
-              value: "add-command",
-              description: "Add something to the archive"
-            },
-            {
-              name: "Move command",
-              value: "cut-command",
-              description: "Move the selected 📄/📂 to another location inside the archive"
-            },
-            {
-              name: "Delete command",
-              value: "delete-command",
-              description: "Delete the selected 📄/📂 from the archive"
-            },
-            {
-              name: "Extract command",
-              value: "extract-command",
-              description: "Extract the selected 📄/📂 from the archive"
-            }
-          ]
-        })
+        const command = await promptWithKeyPress("quitPlusEsc", () => {
+          return asyncImports.select({
+            message: "Choose what to do:",
+            choices: [
+              {
+                name: "Add command",
+                value: "add-command",
+                description: "Add something to the archive"
+              },
+              {
+                name: "Move command",
+                value: "cut-command",
+                description: "Move the selected 📄/📂 to another location inside the archive"
+              },
+              {
+                name: "Delete command",
+                value: "delete-command",
+                description: "Delete the selected 📄/📂 from the archive"
+              },
+              {
+                name: "Extract command",
+                value: "extract-command",
+                description: "Extract the selected 📄/📂 from the archive"
+              }
+            ]
+          })
+        }, false);
+        if (global.command === "selectPromptQuit") {
+          clearLastLines([0, -5])
+          return process.exit();
+        }
+        if (global.command === "backToMainMenu") {
+          clearLastLines([0, -6])
+          return mainMenu(false, archiveFile);
+        }
+        
         switch (command) {
           case 'add-command':
             await addCommand(list, archiveFile)
@@ -368,21 +408,40 @@ async function deleteCommand(list, archiveFile) {
   if (archiveFile === undefined) {
     throw new Error("The archive file path is required");
   }
-  addRemove_Keypress("close");
   delete global.command;
+  if (/^\.(?:rar|cab|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chw|hxs|iso|msi|doc|xls|ppt|wim|swm|exe)$/m.test(extname(archiveFile.selected))) {
+    await inquirer.prompt({
+      name: "key",
+      type: "press-to-continue",
+      anyKey: true,
+      pressToContinueMessage: normalYellow+"Cannot delete because of limited 7zip support for this archive format\n"+normal
+    })
+    return clearLastLines([0, -1]);
+  }
   if (list.selected.length < 1) {
-    console.log(normalYellow+"Empty list was selected, exiting..."+normal)
-    return;
+    await inquirer.prompt({
+      name: "key",
+      type: "press-to-continue",
+      anyKey: true,
+      pressToContinueMessage: normalYellow+"Nothing was selected, cannot delete anything\n"+normal
+    })
+    return clearLastLines([0, -1]);
   }
   if (asyncImports.confirm === "") {
     const { default: confirm } = await import("@inquirer/confirm");
     asyncImports.confirm = confirm;
   }
+  
   console.log("\n", list.selected);
-  const answer = await asyncImports.confirm({ 
-    message: 'Confirm deletion of selected 📄/📂?',
-    default: false
-  });
+  const answer = await promptWithKeyPress("quitPlusEsc", () => {
+    return asyncImports.confirm({ 
+      message: 'Confirm deletion of selected 📄/📂?',
+      default: false
+    })
+  }, false)
+  addRemove_Keypress("close")
+  clearLastLines([0, -3])
+  if (global.command === "backToMainMenu") return;
   if (!answer) return;
   
   return execSync(`
@@ -397,26 +456,50 @@ async function cutCommand(list, archiveFile) {
   if (archiveFile === undefined) {
     throw new Error("The archive file path is required");
   }
-  addRemove_Keypress("close");
-  delete global.command
+  delete global.command;
+  if (/^\.(?:rar|cab|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chw|hxs|iso|msi|doc|xls|ppt|wim|swm|exe)$/m.test(extname(archiveFile.selected))) {
+    await inquirer.prompt({
+      name: "key",
+      type: "press-to-continue",
+      anyKey: true,
+      pressToContinueMessage: normalYellow+"Cannot move because of limited 7zip support for this archive format\n"+normal
+    })
+    return clearLastLines([0, -1]);
+  }
+  if (list.selected.length < 1) {
+    await inquirer.prompt({
+      name: "key",
+      type: "press-to-continue",
+      anyKey: true,
+      pressToContinueMessage: normalYellow+"Nothing was selected, cannot move anything\n"+normal
+    })
+    return clearLastLines([0, -1]);
+  }
   surfaceCount = 0;
   const surface = mappedFSStructure.get("surface");
   const temporaryNewSurface = [".", ...surface];
   mappedFSStructure.set("surface", temporaryNewSurface)
   
-  const newLocation = await inquirer.prompt({
-    type: "tree",
-    message: `Select the new location to move to:\n${gray}(selecting . = top-level of the archive)`,
-    name: "selected",
-    pageSize: 20,
-    multiple: false,
-    tree: createDirectoryLister("surface"),
-    validate: (str) => {
-      if (str.endsWith(sep) || str === ".") return true;
-      return "Only directories are allowed"
-    },
-    onlyShowValid: true
+  const newLocation = await promptWithKeyPress("quitPlusEsc", () => {
+    return inquirer.prompt({
+      type: "tree",
+      message: `Select the new location to move to:\n${gray}(selecting . = top-level of the archive)`,
+      name: "selected",
+      pageSize: 20,
+      multiple: false,
+      tree: createDirectoryLister("surface"),
+      validate: (str) => {
+        if (str.endsWith(sep) || str === ".") return true;
+        return "Only directories are allowed"
+      },
+      onlyShowValid: true
+    })
   })
+  addRemove_Keypress("close")
+  if (global.command === "backToMainMenu") {
+    return clearLastLines([0, -2]);
+  }
+  
   // Cleans the gray text and message duplicate
   clearLastLines([0, -3])
   mappedFSStructure.set("surface", surface)
@@ -438,42 +521,63 @@ async function addCommand(list, archiveFile) {
     throw new Error("The archive file path is required");
   }
   addRemove_Keypress("close");
-  delete global.command
+  delete global.command;
+  if (/^\.(?:rar|cab|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chw|hxs|iso|msi|doc|xls|ppt|wim|swm|exe)$/m.test(extname(archiveFile.selected))) {
+    await inquirer.prompt({
+      name: "key",
+      type: "press-to-continue",
+      anyKey: true,
+      pressToContinueMessage: normalYellow+"Cannot add because of limited 7zip support for this archive format\n"+normal
+    })
+    return clearLastLines([0, -1]);
+  }
   if (asyncImports.select === "") {
     const { default: select } = await import("@inquirer/select");
     asyncImports.select = select;
   }
-  const action = await asyncImports.select({
-    message: "Choose how do you want to add:",
-    choices: [
-      {
-        name: "File selector",
-        value: "file-selection",
-        description: "Select a file from the file system to be put inside the archive"
-      },
-      {
-        name: "New file",
-        value: "create-file",
-        description: "Create a brand new file and inserts it inside the archive"
-      },
-      {
-        name: "New folder/s",
-        value: "create-folder",
-        description: "Create brand-new folder/s inside the archive"
-      }
-    ]
-  })
+  const action = await promptWithKeyPress("quitPlusEsc", () => {
+    return asyncImports.select({
+      message: "Choose how do you want to add:",
+      choices: [
+        {
+          name: "File selector",
+          value: "file-selection",
+          description: "Select a file from the file system to be put inside the archive"
+        },
+        {
+          name: "New file",
+          value: "create-file",
+          description: "Create a brand new file and inserts it inside the archive"
+        },
+        {
+          name: "New folder/s",
+          value: "create-folder",
+          description: "Create brand-new folder/s inside the archive"
+        }
+      ]
+    })
+  }, false);
+  if (global.command === "selectPromptQuit") {
+    clearLastLines([0, -4])
+    return process.exit();
+  }
+  if (global.command === "backToMainMenu") return clearLastLines([0, -5]);
+  
   if (action === "file-selection") {
     // Recursive function to prevent an empty selection
     async function getFromFs() {
-      let fromFs = await inquirer.prompt({
-        type: "file-tree-selection",
-        message: "Pick the file or folder:",
-        name: "selection",
-        pageSize: 20,
-        enableGoUpperDirectory: true,
-        multiple: true
-      })
+      const fromFs = await promptWithKeyPress("quitPlusEsc", () => {
+        return inquirer.prompt({
+          type: "file-tree-selection",
+          message: "Pick the file or folder:",
+          name: "selection",
+          pageSize: 20,
+          enableGoUpperDirectory: true,
+          multiple: true
+        })
+      });
+      if (global.command === "backToMainMenu") return clearLastLines([0, -2]);
+      
       if (fromFs.selection.length === 0) {
         // Removes empty array line
         clearLastLines([0, -1]);
@@ -488,7 +592,9 @@ async function addCommand(list, archiveFile) {
       }
       return fromFs;
     }
-    let fromFs = await getFromFs();
+    const fromFs = await getFromFs();
+    if (global.command === "backToMainMenu") return addCommand(list, archiveFile);
+    
     return execSync(`
       7z a "${archiveFile.selected}" ${
         fromFs.selection
@@ -506,21 +612,32 @@ async function addCommand(list, archiveFile) {
       const { default: input } = await import("@inquirer/input");
       asyncImports.input = input;
     }
-    const filename = await asyncImports.input({
-      message: "Insert the filename that you want to create: ",
-      validate: (str) => {
-        if (/^\s*$/m.test(str)) return "Write down something at least"
-        if (dirname(str) === "/") return "Cannot use a single / as directory name"
-
-        if (extname(str) && extname(str) !== ".") return true;
-        return "Input given is not valid"
-      }
-    })
+    const filename = await promptWithKeyPress("quitPlusEsc", () => {
+      return asyncImports.input({
+        message: "Insert the filename that you want to create: ",
+        validate: (str) => {
+          if (/^\s*$/m.test(str)) return "Write down something at least"
+          if (dirname(str) === "/") return "Cannot use a single / as directory name"
+  
+          if (extname(str) && extname(str) !== ".") return true;
+          return "Input given is not valid"
+        }
+      })
+    }, false)
+    if (global.command === "backToMainMenu") {
+      clearLastLines([0, -2])
+      return addCommand(list, archiveFile);
+    }
     const fileContent = await asyncImports.editor({
       message: "Creating a new file",
       postfix: `${extname(filename)}`,
+      default: '\nType "back()" on the first line in this file to go back to the 3 add modes',
       waitForUseInput: false
     })
+    if (/^back\(\)$/m.test(fileContent)) {
+      clearLastLines([0, -3])
+      return addCommand(list, archiveFile);
+    }
     
     // Creation part
     const dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
@@ -557,23 +674,29 @@ async function addCommand(list, archiveFile) {
       const { default: input } = await import("@inquirer/input");
       asyncImports.input = input;
     }
-    const answer = await asyncImports.input({ 
-      message: "Name of the 📂/: ",
-      validate: (str) => {
-        if (/^\s*$/m.test(str)) return "Write down something at least"
-
-        if (str.endsWith(sep)) return true;
-        return "Input given is not valid"
-      },
-      transformer: (str, {isFinal}) => {
-        if (isFinal 
-            && str.endsWith("/") 
-            && platform === "win32") {
-          return str.replaceAll("/", sep);
+    const answer = await promptWithKeyPress("quitPlusEsc", () => {
+      return asyncImports.input({ 
+        message: "Name of the 📂/: ",
+        validate: (str) => {
+          if (/^\s*$/m.test(str)) return "Write down something at least"
+  
+          if (str.endsWith(sep)) return true;
+          return "Input given is not valid"
+        },
+        transformer: (str, {isFinal}) => {
+          if (isFinal 
+              && str.endsWith("/") 
+              && platform === "win32") {
+            return str.replaceAll("/", sep);
+          }
+          return str;
         }
-        return str;
-      }
-    });
+      })
+    }, false);
+    if (global.command === "backToMainMenu") {
+      clearLastLines([0, -2])
+      return addCommand(list, archiveFile);
+    }
     
     const dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
     mkdirSync(
@@ -595,15 +718,19 @@ async function extractCommand(list, archiveFile) {
   if (archiveFile === undefined) {
     throw new Error("The archive file path is required");
   }
-  addRemove_Keypress("close");
   if (asyncImports.confirm === "") {
     const { default: confirm } = await import("@inquirer/confirm");
     asyncImports.confirm = confirm;
   }
-  const answer = await asyncImports.confirm({ 
-    message: 'Extract alongside the archive (y) or elsewhere (n)?',
-    default: true
-  });
+  const answer = await promptWithKeyPress("quitPlusEsc", () => {
+    return asyncImports.confirm({ 
+      message: 'Extract alongside the archive (y) or elsewhere (n)?',
+      default: true
+    })
+  }, false)
+  addRemove_Keypress("close")
+  clearLastLines([0, -1])
+  if (global.command === "backToMainMenu") return;
   
   const specificThings = (list.selected.length > 0) ? list.selected.map(str => `"${str}"`).join(" ") : "";
   if (answer) {
@@ -614,14 +741,20 @@ async function extractCommand(list, archiveFile) {
       )
     }`)
   } else {
-    const extractLocation = await inquirer.prompt({
-      type: "file-tree-selection",
-      message: "Pick the extraction destination:",
-      name: "selected",
-      pageSize: 20,
-      enableGoUpperDirectory: true,
-      onlyShowDir: true
+    const extractLocation = await promptWithKeyPress("quitPlusEsc", () => {
+      return inquirer.prompt({
+        type: "file-tree-selection",
+        message: "Pick the extraction destination:",
+        name: "selected",
+        pageSize: 20,
+        enableGoUpperDirectory: true,
+        onlyShowDir: true
+      })
     })
+    addRemove_Keypress("close")
+    clearLastLines([0, -1])
+    if (global.command === "backToMainMenu") return;
+    
     execSync(`
       7z x "${archiveFile.selected}" ${specificThings} -o"${
         resolve(
