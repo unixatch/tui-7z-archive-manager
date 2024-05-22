@@ -4,6 +4,7 @@ import { dirname } from "path"
 import { fileURLToPath } from "url"
 import inquirer from "inquirer"
 import oldTreePrompt from "@willowmt/inquirer-tree-prompt"
+import oldInquirerFileTreeSelection from "inquirer-file-tree-selection-prompt"
 
 const strLimit = 40;
 function declareColors() {
@@ -15,6 +16,7 @@ function declareColors() {
   // Actual colors
   global.yellow= "\x1b[33;1m"
   global.normalYellow= "\x1b[33m"
+  global.dimYellow = "\x1b[2;33m"
   global.green= "\x1b[32m"
   global.dimGreen= "\x1b[32;2m"
   global.normalRed= "\x1b[31m"
@@ -44,45 +46,82 @@ const onlyUserArgs = args => {
   return args;
 }
 
-const addRemove_Keypress = (request, prompt) => {
+const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
   if (typeof request !== "string") throw new TypeError("Only strings are allowed");
   if (!prompt instanceof Promise) throw new TypeError("Only prompts are allowed");
+  if (typeof isCustomPrompt !== "boolean") throw new TypeError("Only true or false are permitted")
+  
   const completeEvent = (_, key) => {
     if (key.ctrl && key.name === "q") {
-      process.stdin.removeAllListeners("keypress")
-      prompt.ui.close()
+      (isCustomPrompt) 
+        ? prompt.ui.close()
+        : prompt.cancel()
+      process.stdin.removeListener("keypress", completeEvent)
       process.exit();
     }
     switch (key.name) {
       case "d":
-        prompt.ui.close()
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
         global.command = "deleteCommand";
         break;
       case "c":
-        prompt.ui.close()
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
         global.command = "cutCommand";
         break;
       case "a":
-        prompt.ui.close()
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
         global.command = "addCommand";
         break;
       case "e":
-        prompt.ui.close()
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
         global.command = "extractCommand";
         break;
     }
   }
   const quitPress = (_, key) => {
     if (key.ctrl && key.name === "q") {
-      process.stdin.removeAllListeners("keypress")
-      prompt.ui.close()
+      (isCustomPrompt) 
+        ? prompt.ui.close()
+        : prompt.cancel()
+      process.stdin.removeListener("keypress", quitPress)
       process.exit();
+    }
+  }
+  const quitPress_plusEsc = (_, key) => {
+    if (key.ctrl && key.name === "q") {
+      (isCustomPrompt) 
+        ? prompt.ui.close()
+        : prompt.cancel()
+      if (global.isSelectPrompt) {
+        delete global.isSelectPrompt
+        return global.command = "selectPromptQuit";
+      }
+      process.stdin.removeListener("keypress", quitPress_plusEsc)
+      process.exit();
+    }
+    if (key.name === "escape") {
+      (isCustomPrompt) 
+        ? prompt.ui.close()
+        : prompt.cancel()
+      process.stdin.removeListener("keypress", quitPress_plusEsc)
+      global.command = "backToMainMenu";
     }
   }
   
   switch (request) {
     case "quitOnly":
       process.stdin.on('keypress', quitPress)
+      break;
+    case "quitPlusEsc":
+      process.stdin.on('keypress', quitPress_plusEsc)
       break;
     case "complete":
       process.stdin.on('keypress', completeEvent)
@@ -145,6 +184,33 @@ function getStringList(archiveFilePath) {
     })
   })
 }
+function promptWithKeyPress(typeOfKeyEvent, promptFunc, isCustomPrompt = true) {
+  if (!promptFunc instanceof Function) throw new TypeError("First argument is not a function");
+  if (typeof typeOfKeyEvent !== "string") throw new TypeError("A string can only be used");
+  if (typeof isCustomPrompt !== "boolean") throw new TypeError("Only true or false are permitted");
+  
+  // Detects if it's the select prompt
+  if (/return asyncImports\.select\(/m.test(promptFunc.toString())) global.isSelectPrompt = true;
+  return new Promise((resolve, reject) => {
+    const prompt = promptFunc();
+    if (isCustomPrompt) {
+      prompt
+        .then(a => resolve(a))
+        .catch(e => reject(red+e+normal))
+      addRemove_Keypress(typeOfKeyEvent, prompt)
+    } else {
+      prompt
+        .then(a => resolve(a))
+        .catch(e => {
+          if (e.message === "Prompt was canceled") {
+            return resolve();
+          }
+          reject(red+e+normal)
+        })
+      addRemove_Keypress(typeOfKeyEvent, prompt, false)
+    }
+  });
+}
 
 class TreePrompt extends oldTreePrompt {
   constructor(questions, rl, answers) {
@@ -154,6 +220,15 @@ class TreePrompt extends oldTreePrompt {
   valueFor(node) {
 		return typeof node?.value !=='undefined' ? node?.value : node?.name;
 	}
+  close() {
+    this.onSubmit(this);
+  }
+}
+class inquirerFileTreeSelection extends oldInquirerFileTreeSelection {
+  constructor(questions, rl, answers) {
+		super(questions, rl, answers);
+		this.value = ""
+  }
   close() {
     this.onSubmit(this);
   }
@@ -170,5 +245,7 @@ export {
   addRemove_Keypress,
   clearLastLines,
   getStringList,
-  TreePrompt
+  promptWithKeyPress,
+  TreePrompt,
+  inquirerFileTreeSelection
 }
