@@ -84,6 +84,12 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
           : prompt.cancel()
         global.command = "extractCommand";
         break;
+      case "n":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        global.command = "changeCommand";
+        break;
     }
   }
   const quitPress = (_, key) => {
@@ -218,8 +224,17 @@ class TreePrompt extends oldTreePrompt {
 		this.value = ""
   }
   valueFor(node) {
-		return typeof node?.value !=='undefined' ? node?.value : node?.name;
+		return typeof node?.value !== 'undefined' ? node?.value : node?.name;
 	}
+	render(error) {
+	  // Getting rid of the blue answers
+	  // for cleaning purposes only if answered
+    if (this.status === 'answered') {
+      let message = this.getQuestion();
+      return this.screen.render(message);
+    }
+    super.render(error);
+  }
   close() {
     this.onSubmit(this);
   }
@@ -228,6 +243,15 @@ class inquirerFileTreeSelection extends oldInquirerFileTreeSelection {
   constructor(questions, rl, answers) {
 		super(questions, rl, answers);
 		this.value = ""
+  }
+  render(error) {
+	  // Getting rid of the blue answers
+	  // for cleaning purposes only if answered
+    if (this.status === 'answered') {
+      let message = this.getQuestion();
+      return this.screen.render(message);
+    }
+    super.render(error);
   }
   close() {
     this.onSubmit(this);
