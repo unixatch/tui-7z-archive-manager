@@ -1,4 +1,12 @@
 #!/usr/bin/env node
+import { execSync } from "child_process"
+// Detects if 7zip is installed correctly
+try {
+  execSync("7z")
+} catch (e) {
+  console.log("\x1b[31;1m"+"7zip is not installed or it's not visible globally"+"\x1b[0m");
+  process.exit()
+}
 import { tmpdir } from "os"
 import { 
   lstatSync,
@@ -19,7 +27,6 @@ import {
   resolve
 } from "path"
 import { platform } from "process"
-import { execSync } from "child_process"
 
 import {
   escapeRegExp,
@@ -30,6 +37,7 @@ import {
   TreePrompt,
   inquirerFileTreeSelection
 } from "./utils.mjs"
+import actUpOnPassedArgs from "./cli.mjs"
 
 import inquirer from "inquirer"
 import PressToContinuePrompt from 'inquirer-press-to-continue';
@@ -46,7 +54,22 @@ let onlyDirectories,
     onlyFiles,
     mappedFSStructure;
 
+
+// In case the user passes some arguments
+await actUpOnPassedArgs(process.argv)
+
 async function getArchivePath() {
+  // In case the user gave the path already
+  if (global.userProvidedArchiveFilePath !== undefined) {
+    const archiveFileString = global.userProvidedArchiveFilePath;
+    delete global.userProvidedArchiveFilePath;
+    // For correct cleaning of the screen
+    process.stdout.write("\n")
+    return {
+      selected: archiveFileString
+    };
+  }
+  
   const archiveFile = await promptWithKeyPress("quitOnly", () => {
     return inquirer.prompt({
       type: "file-tree-selection",
@@ -276,10 +299,16 @@ function createDirectoryLister(dir) {
 
 let firstTime = true;
 async function mainMenu(refresh, archiveFilePassed) {
+  if (archiveFilePassed !== undefined 
+      && !archiveFilePassed instanceof Object) {
+    throw new TypeError("The 2nd argument is not an object");
+  }
   let archiveFile;
   if (firstTime) {
     archiveFile = await createMap();
     firstTime = false;
+    // Cleans the starting prompt
+    clearLastLines([0, -1])
     // Limited support message for certain archives
     if (/^\.(?:rar|cab|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chw|hxs|iso|msi|doc|xls|ppt|wim|swm|exe)$/m.test(extname(archiveFile.selected))) {
       console.log(dimYellow+`The archive ${italics+basename(archiveFile.selected)+normal+dimYellow} has limited support from 7zip`+normal);
@@ -299,9 +328,13 @@ async function mainMenu(refresh, archiveFilePassed) {
     surfaceCount = 0;
     archiveFile = archiveFilePassed;
   }
-  if (archiveFilePassed !== undefined 
-      && !archiveFilePassed instanceof Object) {
-    throw new TypeError("The 2nd argument is not an object");
+  if (global.command === "changeCommand") {
+    // Limited support message for certain archives
+    if (/^\.(?:rar|cab|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chw|hxs|iso|msi|doc|xls|ppt|wim|swm|exe)$/m.test(extname(archiveFile.selected))) {
+      console.log(dimYellow+`The archive ${italics+basename(archiveFile.selected)+normal+dimYellow} has limited support from 7zip`+normal);
+      global.hasLimitedSupport = true;
+    }
+    delete global.command
   }
   
   const thingsToClean = inquirer.prompt({
@@ -338,66 +371,89 @@ async function mainMenu(refresh, archiveFilePassed) {
         if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
         mainMenu(true, archiveFile)
         return;
+      case "changeCommand":
+        const newArchiveFile = await changeArchive();
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+        mainMenu(true, newArchiveFile)
+        return;
       
       default:
         // Because prompt line gets repeated once
         clearLastLines([0, -1]);
+        // Just in case it still exists
+        delete global.command
         if (asyncImports.select === "") {
           const { default: select } = await import("@inquirer/select");
           asyncImports.select = select;
         }
         
-        const command = await promptWithKeyPress("quitPlusEsc", () => {
+        const choices = [
+          {
+            name: "Change archive",
+            value: "change-command"
+          },
+          {
+            name: "Add command",
+            value: "add-command",
+            description: "Add something to the archive"
+          },
+          {
+            name: "Move command",
+            value: "cut-command",
+            description: "Move the selected 📄/📂 to another location inside the archive"
+          },
+          {
+            name: "Delete command",
+            value: "delete-command",
+            description: "Delete the selected 📄/📂 from the archive"
+          },
+          {
+            name: "Extract command",
+            value: "extract-command",
+            description: "Extract the selected 📄/📂 from the archive"
+          }
+        ]
+        const selectedCommand = await promptWithKeyPress("quitPlusEsc", () => {
           return asyncImports.select({
             message: "Choose what to do:",
-            choices: [
-              {
-                name: "Add command",
-                value: "add-command",
-                description: "Add something to the archive"
-              },
-              {
-                name: "Move command",
-                value: "cut-command",
-                description: "Move the selected 📄/📂 to another location inside the archive"
-              },
-              {
-                name: "Delete command",
-                value: "delete-command",
-                description: "Delete the selected 📄/📂 from the archive"
-              },
-              {
-                name: "Extract command",
-                value: "extract-command",
-                description: "Extract the selected 📄/📂 from the archive"
-              }
-            ]
+            choices: choices
           })
         }, false);
         if (global.command === "selectPromptQuit") {
-          clearLastLines([0, -5])
+          clearLastLines([0, (choices.length+1)*-1])
           return process.exit();
         }
         if (global.command === "backToMainMenu") {
-          clearLastLines([0, -6])
+          clearLastLines([0, (choices.length+1)*-1])
           return mainMenu(false, archiveFile);
         }
         
-        switch (command) {
+        // Cleans the select prompt
+        clearLastLines([0, -1])
+        switch (selectedCommand) {
+          case 'change-command':
+            const newArchiveFile = await changeArchive(archiveFile);
+            if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+            mainMenu(true, newArchiveFile)
+            break;
           case 'add-command':
             await addCommand(list, archiveFile)
+            if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, archiveFile)
             break;
           case 'cut-command':
             await cutCommand(list, archiveFile)
+            if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, archiveFile)
             break;
           case 'delete-command':
             await deleteCommand(list, archiveFile)
+            if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, archiveFile)
             break;
           case 'extract-command':
             await extractCommand(list, archiveFile)
+            if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, archiveFile)
             break;
         }
@@ -427,22 +483,36 @@ async function deleteCommand(list, archiveFile) {
     })
     return clearLastLines([0, -1]);
   }
-  if (asyncImports.confirm === "") {
-    const { default: confirm } = await import("@inquirer/confirm");
-    asyncImports.confirm = confirm;
-  }
-  
-  console.log("\n", list.selected);
-  const answer = await promptWithKeyPress("quitPlusEsc", () => {
-    return asyncImports.confirm({ 
-      message: 'Confirm deletion of selected 📄/📂?',
-      default: false
+  if (global.autoConfirm === undefined) {
+    if (asyncImports.confirm === "") {
+      const { default: confirm } = await import("@inquirer/confirm");
+      asyncImports.confirm = confirm;
+    }
+    
+    const terminalRows = process.stdout.rows;
+    process.stdout.write("\n")
+    list.selected.forEach((selected) => {
+      console.log(
+        green,
+        (selected.length > terminalRows)
+            // Truncates the start so that 
+            // it fits the screen if necessary
+          ? selected.replace(/^.{5}/m, "...")
+          : selected,
+        normal
+      );
     })
-  }, false)
-  addRemove_Keypress("close")
-  clearLastLines([0, -3])
-  if (global.command === "backToMainMenu") return;
-  if (!answer) return;
+    const answer = await promptWithKeyPress("quitPlusEsc", () => {
+      return asyncImports.confirm({ 
+        message: 'Confirm deletion of selected 📄/📂?',
+        default: false
+      })
+    }, false)
+    addRemove_Keypress("close")
+    clearLastLines([0, (list.selected.length+2)*-1])
+    if (global.command === "backToMainMenu") return;
+    if (!answer) return;
+  }
   
   return execSync(`
     7z d "${archiveFile.selected}" ${
@@ -558,7 +628,7 @@ async function addCommand(list, archiveFile) {
     })
   }, false);
   if (global.command === "selectPromptQuit") {
-    clearLastLines([0, -4])
+    clearLastLines([0, -5])
     return process.exit();
   }
   if (global.command === "backToMainMenu") return clearLastLines([0, -5]);
@@ -576,20 +646,30 @@ async function addCommand(list, archiveFile) {
           multiple: true
         })
       });
-      if (global.command === "backToMainMenu") return clearLastLines([0, -2]);
+      if (global.command === "backToMainMenu") {
+        addRemove_Keypress("close")
+        return clearLastLines([0, -2]);
+      }
       
       if (fromFs.selection.length === 0) {
-        // Removes empty array line
-        clearLastLines([0, -1]);
+        // Cleans empty array lines
+        clearLastLines([0, -2]);
         await inquirer.prompt({
           name: "key",
           type: "press-to-continue",
           anyKey: true,
           pressToContinueMessage: yellow+"You have to select something...\n"+normal
         })
+        if (global.command === "backToMainMenu") {
+          addRemove_Keypress("close")
+          return clearLastLines([0, -2]);
+        }
         clearLastLines([0, -1]);
+        addRemove_Keypress("close")
         return getFromFs();
       }
+      addRemove_Keypress("close")
+      clearLastLines([0, -4])
       return fromFs;
     }
     const fromFs = await getFromFs();
@@ -621,6 +701,13 @@ async function addCommand(list, archiveFile) {
   
           if (extname(str) && extname(str) !== ".") return true;
           return "Input given is not valid"
+        },
+        theme: {
+          style: {
+            // Removes the blue answer on the right of the message 
+            // for easier cleaning of the line
+            answer: (str) => ""
+          }
         }
       })
     }, false)
@@ -631,16 +718,21 @@ async function addCommand(list, archiveFile) {
     const fileContent = await asyncImports.editor({
       message: "Creating a new file",
       postfix: `${extname(filename)}`,
-      default: '\nType "back()" on the first line in this file to go back to the 3 add modes',
+      default: '\nType "back()" on the first line in this file to go back to the 3 add modes\nOr type "quit()" on the first line to cleanly quit the program',
       waitForUseInput: false
     })
     if (/^back\(\)$/m.test(fileContent)) {
       clearLastLines([0, -3])
       return addCommand(list, archiveFile);
     }
+    if (/^quit\(\)$/m.test(fileContent)) {
+      clearLastLines([0, -3])
+      return process.exit();
+    }
     
+    clearLastLines([0, -3])
     // Creation part
-    const dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
+    let dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
     if (dirname(filename) !== ".") {
       mkdirSync(
         resolve(dedicatedTmpDir, dirname(filename)), 
@@ -651,9 +743,7 @@ async function addCommand(list, archiveFile) {
         fileContent
       );
     } else {
-      if (!existsSync(dedicatedTmpDir)) {
-        dedicatedTmpDir = mkdirSync(dedicatedTmpDir);
-      }
+      if (!existsSync(dedicatedTmpDir)) mkdirSync(dedicatedTmpDir);
       writeFileSync(
         resolve(dedicatedTmpDir, filename),
         fileContent
@@ -690,6 +780,13 @@ async function addCommand(list, archiveFile) {
             return str.replaceAll("/", sep);
           }
           return str;
+        },
+        theme: {
+          style: {
+            // Removes the blue answer on the right of the message 
+            // for easier cleaning of the line
+            answer: (str) => ""
+          }
         }
       })
     }, false);
@@ -698,6 +795,7 @@ async function addCommand(list, archiveFile) {
       return addCommand(list, archiveFile);
     }
     
+    clearLastLines([0, -2])
     const dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
     mkdirSync(
       resolve(dedicatedTmpDir, answer), 
@@ -765,6 +863,39 @@ async function extractCommand(list, archiveFile) {
     `)
   }
   return;
+}
+async function changeArchive(oldArchiveFile) {
+  const archiveFile = await promptWithKeyPress("quitPlusEsc", () => {
+    return inquirer.prompt({
+      type: "file-tree-selection",
+      message: "Choose the new archive:",
+      name: "selected",
+      pageSize: 20,
+      enableGoUpperDirectory: true,
+      validate: selected => {
+        if (!lstatSync(selected).isFile()) {
+          return "This isn't even a file";
+        } 
+        if (!/^\.(?:7z|zip|gz|gzip|tgz|bz2|bzip2|tbz2|tbz|tar|rar|cab|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chw|hxs|iso|msi|doc|xls|ppt|wim|swm|exe)$/m.test(extname(selected))) {
+          return "It's not a supported archive";
+        }
+        return true;
+      }
+    })
+  });
+  addRemove_Keypress("close")
+  if (global.command === "backToMainMenu") {
+    clearLastLines([0, -1])
+    return oldArchiveFile;
+  }
+  global.command = "changeCommand";
+  clearLastLines([0, -2])
+  if (global.hasLimitedSupport) {
+    // Cleans the old message since we're changing archive
+    delete global.hasLimitedSupport
+    clearLastLines([0, -1])
+  }
+  return archiveFile;
 }
 
 mainMenu()
