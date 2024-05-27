@@ -1,7 +1,7 @@
 {
-  "name": "7z-archive-cleaner",
+  "name": "tui-7z-archive-manager",
   "version": "1.0.0",
-  "description": "Allows you to clean an archive .7z",
+  "description": "A tui archive manager based on 7zip",
   "homepage": "",
   "repository": {
     "type": "git",
@@ -12,15 +12,23 @@
     "clean",
     "cleaner",
     "archive",
-    "7z"
+    "7z",
+    "manager",
+    "tui",
+    "terminal",
+    "multiplatform",
+    "windows",
+    "unix",
+    "linux",
+    "inquirer"
   ],
   "preferGlobal": true,
-  "main": "7z-cleaner.mjs",
+  "main": "tui-7z-archive-manager.mjs",
   "bin": {
-    "tuiRetroarchTD": "7z-cleaner.mjs"
+    "tui7zArchiveM": "tui-7z-archive-manager.mjs"
   },
   "scripts": {
-    "test": "node 7z-cleaner.mjs"
+    "test": "node tui-7z-archive-manager.mjs"
   },
   "author": "unixatch",
   "license": "GPL-2.0-or-later",
