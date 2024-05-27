@@ -2,12 +2,12 @@
   "name": "tui-7z-archive-manager",
   "version": "1.0.0",
   "description": "A tui archive manager based on 7zip",
-  "homepage": "",
+  "homepage": "https://github.com/unixatch/tui-7z-archive-manager",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/unixatch/tui-7z-archive-manager.git"
   },
-  "bugs": "",
+  "bugs": "https://github.com/unixatch/tui-7z-archive-manager/issues",
   "keywords": [
     "clean",
     "cleaner",
