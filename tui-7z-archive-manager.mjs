@@ -187,7 +187,10 @@ function recursivelyMappingSubdirectories(arrayOfFolderPaths, wantToSearchInFile
       mappedFSStructure.set("surface", newSurface);
     }
     if (subDirectoriesIn.length === 0) {
-      mappedFSStructure.set(name, {
+      mappedFSStructure.set(
+        (!wantToSearchInFiles) 
+          ? path 
+          : path.match(pattern)[1], {
         name: name,
         path: path,
         children: []
@@ -203,7 +206,10 @@ function recursivelyMappingSubdirectories(arrayOfFolderPaths, wantToSearchInFile
         if (subDir !== null) return subDir[1];
       })
     }
-    mappedFSStructure.set(name, {
+    mappedFSStructure.set(
+      (!wantToSearchInFiles) 
+        ? path 
+        : path.match(pattern)[1], {
       name: name,
       path: path,
       children: subDirectoriesIn
@@ -215,7 +221,7 @@ function mappingFiles() {
   onlyFiles.forEach((path) => {
     const subFileName = path.replace(/^.*\//, "");
     const pattern = new RegExp(
-      `([^\\/]*)\\/${escapeRegExp(subFileName)}$`, "m"
+      `(.*)\\/${escapeRegExp(subFileName)}$`, "m"
     );
     const isInside = path.match(pattern);
 
@@ -276,7 +282,7 @@ function createDirectoryLister(dir) {
     
 		return returnValue
 		.map((item) => {
-		  const contents = mappedFSStructure.get(item.replace(/^.*\//m, ""));
+		  const contents = mappedFSStructure.get(item);
 			const isDirectory = (contents) ? true : false;
 			let resolved = item+sep;
 			
@@ -291,7 +297,7 @@ function createDirectoryLister(dir) {
 			return {
 				name: contents.name,
 				value: resolved,
-				children: createDirectoryLister(contents.name)
+				children: createDirectoryLister(contents.path)
 			}
 		})
 	}
