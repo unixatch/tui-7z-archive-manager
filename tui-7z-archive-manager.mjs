@@ -11,6 +11,7 @@ import { tmpdir } from "os"
 import { 
   lstatSync,
   readdirSync,
+  readFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -38,6 +39,7 @@ import {
   inquirerFileTreeSelection
 } from "./utils.mjs"
 import actUpOnPassedArgs from "./cli.mjs"
+import JSONConfigPath from "./createConfigJSON.mjs"
 
 import inquirer from "inquirer"
 import PressToContinuePrompt from 'inquirer-press-to-continue';
@@ -53,10 +55,19 @@ const asyncImports = {
 let onlyDirectories, 
     onlyFiles,
     mappedFSStructure;
+// Windows compatibility
+const typeOfSlash = (platform === "win32") ? "\\\\" : "\\/";
 
 
 // In case the user passes some arguments
 await actUpOnPassedArgs(process.argv)
+
+// User's configurations
+const { inquirerPagePromptsSize } = JSON.parse(readFileSync(JSONConfigPath).toString());
+if (!Number.isInteger(inquirerPagePromptsSize)) {
+  console.log(red+"Page size must be a number"+normal)
+  process.exit();
+}
 
 async function getArchivePath() {
   // In case the user gave the path already
@@ -75,7 +86,7 @@ async function getArchivePath() {
       type: "file-tree-selection",
       message: "Choose an archive:",
       name: "selected",
-      pageSize: 20,
+      pageSize: inquirerPagePromptsSize,
       enableGoUpperDirectory: true,
       validate: selected => {
         if (!lstatSync(selected).isFile()) {
@@ -100,14 +111,11 @@ async function createMap(archiveFilePassed) {
     throw new TypeError("Gave something that it's not an object")
   } else archiveFile = archiveFilePassed;
   
-  
+  console.log(gray+"Loading list..."+normal)
   let listOfArchive = await getStringList(archiveFile.selected);
+  // Gets only Paths and the Attributes
+  // or Paths and Folder in case it's not 7z
   listOfArchive = listOfArchive
-      // Removes useless lines from the start 
-      // with Single line flag included
-    .replace(/^7-Zip.*[-]{2}.*\n[-]{10}/sm, "")
-      // Gets only Paths and the Attributes
-      // or Paths and Folder check in case it's not 7z
     .replaceAll(
       (extname(archiveFile.selected) === ".7z")
         ? /^(?!Path.*|Attributes.*).*\n?/gm
@@ -131,7 +139,7 @@ async function createMap(archiveFilePassed) {
     (matchArray) => matchArray[1]
   );
   
-  const pattern = /^[^\/]*$/m;
+  const pattern = new RegExp(`^[^${typeOfSlash}]*$`, "m");
   const surface = [
     // Folders 📂 
     onlyDirectories.filter((path) => pattern.test(path)),
@@ -150,6 +158,7 @@ async function createMap(archiveFilePassed) {
   recursivelyMappingSubdirectories(surface[0])
   mappingFiles()
   
+  clearLastLines([0, -1])
   return archiveFile;
 }
 
@@ -161,12 +170,19 @@ function recursivelyMappingSubdirectories(arrayOfFolderPaths, wantToSearchInFile
 
   const ogArrayList = (wantToSearchInFiles) ? onlyFiles : onlyDirectories;
   let subDirectories = [];
+  const regexOfEndName = new RegExp(`^.*${typeOfSlash}`, "m");
+  const regexOfSurfacePath = new RegExp(`^[^${typeOfSlash}]*$`, "m");
 
   arrayOfFolderPaths.forEach((path) => {
-    const name = path.replace(/^.*\//, "");
-    // This regex checks for subdirectories
-    const pattern = (wantToSearchInFiles) ? new RegExp(`^(${escapeRegExp(path)}\\/[^\\/]*)\\/[^\\/]*$`, "m") : new RegExp(`^${escapeRegExp(path)}\\/[^\\/]*$`, "m");
+    const name = path.replace(regexOfEndName, "");
+    const pattern = (wantToSearchInFiles) 
+      // This regex checks for subdirectories, 
+      // capturing the folder that the file is in without the slash at the end
+      ? new RegExp(`^(${escapeRegExp(path) + typeOfSlash}[^${typeOfSlash}]*)${typeOfSlash}[^${typeOfSlash}]*$`, "m") 
+      // This regex checks for subdirectories
+      : new RegExp(`^${escapeRegExp(path) + typeOfSlash}[^${typeOfSlash}]*$`, "m");
 
+    // The .filter() method is required, 🚫 DO NOT CHANGE 🚫
     let subDirectoriesIn = ogArrayList.filter((path) => {
       if (pattern.test(path)) {
         if (wantToSearchInFiles) {
@@ -181,7 +197,7 @@ function recursivelyMappingSubdirectories(arrayOfFolderPaths, wantToSearchInFile
     })
 
     if (wantToSearchInFiles
-        && path.match(/^[^\/]*$/m) !== null) {
+        && path.match(regexOfSurfacePath) !== null) {
       const surface = mappedFSStructure.get("surface");
       const newSurface = [...surface, path];
       mappedFSStructure.set("surface", newSurface);
@@ -218,10 +234,11 @@ function recursivelyMappingSubdirectories(arrayOfFolderPaths, wantToSearchInFile
   return recursivelyMappingSubdirectories(subDirectories, wantToSearchInFiles);
 }
 function mappingFiles() {
+  const regexOfEndName = new RegExp(`^.*${typeOfSlash}`, "m");
   onlyFiles.forEach((path) => {
-    const subFileName = path.replace(/^.*\//, "");
+    const subFileName = path.replace(regexOfEndName, "");
     const pattern = new RegExp(
-      `(.*)\\/${escapeRegExp(subFileName)}$`, "m"
+      `(.*)${typeOfSlash + escapeRegExp(subFileName)}$`, "m"
     );
     const isInside = path.match(pattern);
 
@@ -250,7 +267,7 @@ function mappingFiles() {
       const {name, message, stack} = err;
       if (name === "TypeError" 
           && message === "Cannot read properties of undefined (reading 'children')") {
-        const surfaceFolderName = /([^\/]*)(?:\/[^\/]*)*$/m;
+        const surfaceFolderName = new RegExp(`([^${typeOfSlash}]*)(?:${typeOfSlash}[^${typeOfSlash}]*)*$`, "m");
         const missingSurfaceFolder = path.match(surfaceFolderName)[1];
         recursivelyMappingSubdirectories([missingSurfaceFolder], true);
 
@@ -317,6 +334,7 @@ async function mainMenu(refresh, archiveFilePassed) {
     clearLastLines([0, -1])
     // Limited support message for certain archives
     if (/^\.(?:rar|cab|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chw|hxs|iso|msi|doc|xls|ppt|wim|swm|exe)$/m.test(extname(archiveFile.selected))) {
+      global.hasLimitedSupport = true;
       console.log(dimYellow+`The archive ${italics+basename(archiveFile.selected)+normal+dimYellow} has limited support from 7zip`+normal);
     }
   }
@@ -348,7 +366,7 @@ async function mainMenu(refresh, archiveFilePassed) {
     message: "Archive: "+basename(archiveFile.selected),
     name: "selected",
     multiple: true,
-    pageSize: 20,
+    pageSize: inquirerPagePromptsSize,
     tree: createDirectoryLister("surface")
   })
   addRemove_Keypress("complete", thingsToClean);
@@ -372,8 +390,43 @@ async function mainMenu(refresh, archiveFilePassed) {
         if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
         mainMenu(true, archiveFile)
         return;
+      // Ctrl + a
+      case "add_FileSelection":
+        await addCommand(list, archiveFile, "file-selection")
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+        mainMenu(true, archiveFile)
+        return;
+      // Meta + a
+      case "add_CreateFile":
+        await addCommand(list, archiveFile, "create-file")
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+        mainMenu(true, archiveFile)
+        return;
+      // Shift + a
+      case "add_CreateFolder":
+        await addCommand(list, archiveFile, "create-folder")
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+        mainMenu(true, archiveFile)
+        return;
       case "extractCommand":
         await extractCommand(list, archiveFile)
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+        mainMenu(true, archiveFile)
+        return;
+      // Ctrl + e
+      case "extract_here":
+        await extractCommand(list, archiveFile, "here")
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+        mainMenu(true, archiveFile)
+        return;
+      // Shift + e
+      case "extract_elsewhere":
+        await extractCommand(list, archiveFile, "elsewhere")
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+        mainMenu(true, archiveFile)
+        return;
+      case "renameCommand":
+        await renameCommand(list, archiveFile)
         if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
         mainMenu(true, archiveFile)
         return;
@@ -409,6 +462,11 @@ async function mainMenu(refresh, archiveFilePassed) {
             description: "Move the selected 📄/📂 to another location inside the archive"
           },
           {
+            name: "Rename command",
+            value: "rename-command",
+            description: "Rename the selected 📄/📂 inside the archive"
+          },
+          {
             name: "Delete command",
             value: "delete-command",
             description: "Delete the selected 📄/📂 from the archive"
@@ -438,7 +496,7 @@ async function mainMenu(refresh, archiveFilePassed) {
         clearLastLines([0, -1])
         switch (selectedCommand) {
           case 'change-command':
-            const newArchiveFile = await changeArchive(archiveFile);
+            const newArchiveFile = await changeArchive();
             if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, newArchiveFile)
             break;
@@ -459,6 +517,11 @@ async function mainMenu(refresh, archiveFilePassed) {
             break;
           case 'extract-command':
             await extractCommand(list, archiveFile)
+            if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+            mainMenu(true, archiveFile)
+            break;
+          case 'rename-command':
+            await renameCommand(list, archiveFile)
             if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, archiveFile)
             break;
@@ -561,7 +624,7 @@ async function cutCommand(list, archiveFile) {
       type: "tree",
       message: `Select the new location to move to:\n${gray}(selecting . = top-level of the archive)`,
       name: "selected",
-      pageSize: 20,
+      pageSize: inquirerPagePromptsSize,
       multiple: false,
       tree: createDirectoryLister("surface"),
       validate: (str) => {
@@ -592,7 +655,7 @@ async function cutCommand(list, archiveFile) {
   })
   return
 }
-async function addCommand(list, archiveFile) {
+async function addCommand(list, archiveFile, skipToSection) {
   if (archiveFile === undefined) {
     throw new Error("The archive file path is required");
   }
@@ -607,37 +670,49 @@ async function addCommand(list, archiveFile) {
     })
     return clearLastLines([0, -1]);
   }
-  if (asyncImports.select === "") {
-    const { default: select } = await import("@inquirer/select");
-    asyncImports.select = select;
+  
+  // In case the user did a specific shortcut,
+  // skip ahead to the part interested
+  let action;
+  if (skipToSection === "file-selection"
+      || skipToSection === "create-file"
+      || skipToSection === "create-folder") {
+    action = skipToSection;
+    skipToSection = true;
+  } else skipToSection = false;
+  if (!skipToSection) {
+    if (asyncImports.select === "") {
+      const { default: select } = await import("@inquirer/select");
+      asyncImports.select = select;
+    }
+    action = await promptWithKeyPress("quitPlusEsc", () => {
+      return asyncImports.select({
+        message: "Choose how do you want to add:",
+        choices: [
+          {
+            name: "File selector",
+            value: "file-selection",
+            description: "Select a file from the file system to be put inside the archive"
+          },
+          {
+            name: "New file",
+            value: "create-file",
+            description: "Create a brand new file and inserts it inside the archive"
+          },
+          {
+            name: "New folder/s",
+            value: "create-folder",
+            description: "Create brand-new folder/s inside the archive"
+          }
+        ]
+      })
+    }, false);
+    if (global.command === "selectPromptQuit") {
+      clearLastLines([0, -5])
+      return process.exit();
+    }
+    if (global.command === "backToMainMenu") return clearLastLines([0, -5]);
   }
-  const action = await promptWithKeyPress("quitPlusEsc", () => {
-    return asyncImports.select({
-      message: "Choose how do you want to add:",
-      choices: [
-        {
-          name: "File selector",
-          value: "file-selection",
-          description: "Select a file from the file system to be put inside the archive"
-        },
-        {
-          name: "New file",
-          value: "create-file",
-          description: "Create a brand new file and inserts it inside the archive"
-        },
-        {
-          name: "New folder/s",
-          value: "create-folder",
-          description: "Create brand-new folder/s inside the archive"
-        }
-      ]
-    })
-  }, false);
-  if (global.command === "selectPromptQuit") {
-    clearLastLines([0, -5])
-    return process.exit();
-  }
-  if (global.command === "backToMainMenu") return clearLastLines([0, -5]);
   
   if (action === "file-selection") {
     // Recursive function to prevent an empty selection
@@ -647,14 +722,14 @@ async function addCommand(list, archiveFile) {
           type: "file-tree-selection",
           message: "Pick the file or folder:",
           name: "selection",
-          pageSize: 20,
+          pageSize: inquirerPagePromptsSize,
           enableGoUpperDirectory: true,
           multiple: true
         })
       });
       if (global.command === "backToMainMenu") {
         addRemove_Keypress("close")
-        return clearLastLines([0, -2]);
+        return clearLastLines([0, (skipToSection) ? -1 : -2]);
       }
       
       if (fromFs.selection.length === 0) {
@@ -668,14 +743,14 @@ async function addCommand(list, archiveFile) {
         })
         if (global.command === "backToMainMenu") {
           addRemove_Keypress("close")
-          return clearLastLines([0, -2]);
+          return clearLastLines([0, (skipToSection) ? -1 : -2]);
         }
         clearLastLines([0, -1]);
         addRemove_Keypress("close")
         return getFromFs();
       }
       addRemove_Keypress("close")
-      clearLastLines([0, -4])
+      clearLastLines([0, (skipToSection) ? -2 : -4])
       return fromFs;
     }
     const fromFs = await getFromFs();
@@ -698,12 +773,26 @@ async function addCommand(list, archiveFile) {
       const { default: input } = await import("@inquirer/input");
       asyncImports.input = input;
     }
+    const forbiddenChars_Win = /^<|>|:|"|\/|\\|\||\?|\*$/m;
+    const forbiddenNames_Win = /CON|PRN|AUX|NUL|COM1|COM2|COM3|COM4|COM5|COM6|COM7|COM8|COM9|LPT1|LPT2|LPT3|LPT4|LPT5|LPT6|LPT7|LPT8|LPT9/;
     const filename = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.input({
         message: "Insert the filename that you want to create: ",
         validate: (str) => {
           if (/^\s*$/m.test(str)) return "Write down something at least"
           if (dirname(str) === "/") return "Cannot use a single / as directory name"
+          if (platform === "win32") {
+            if (forbiddenChars_Win.test(str)) {
+              return "One of the characters is forbidden on Windows"
+            }
+            if (forbiddenNames_Win.test(parse(str).name)
+                || forbiddenNames_Win.test(parse(str).ext)) {
+              return "Cannot use that name because on Windows it's reserved"
+            }
+            if (str.endsWith(".") || str.endsWith(" ")) {
+              return "Cannot end with a . or space on Windows"
+            }
+          }
   
           if (extname(str) && extname(str) !== ".") return true;
           return "Input given is not valid"
@@ -718,7 +807,7 @@ async function addCommand(list, archiveFile) {
       })
     }, false)
     if (global.command === "backToMainMenu") {
-      clearLastLines([0, -2])
+      clearLastLines([0, (skipToSection) ? -1 : -2])
       return addCommand(list, archiveFile);
     }
     const fileContent = await asyncImports.editor({
@@ -728,15 +817,15 @@ async function addCommand(list, archiveFile) {
       waitForUseInput: false
     })
     if (/^back\(\)$/m.test(fileContent)) {
-      clearLastLines([0, -3])
+      clearLastLines([0, (skipToSection) ? -2 : -3])
       return addCommand(list, archiveFile);
     }
     if (/^quit\(\)$/m.test(fileContent)) {
-      clearLastLines([0, -3])
+      clearLastLines([0, (skipToSection) ? -2 : -3])
       return process.exit();
     }
     
-    clearLastLines([0, -3])
+    clearLastLines([0, (skipToSection) ? -2 : -3])
     // Creation part
     let dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
     if (dirname(filename) !== ".") {
@@ -759,7 +848,7 @@ async function addCommand(list, archiveFile) {
       7z a "${archiveFile.selected}" ${dedicatedTmpDir}/*
     `)
     
-    const filenamePathToRemove = (dirname(filename) !== ".") ? filename.match(/^[^\\/]*/m)[0] : filename;
+    const filenamePathToRemove = (dirname(filename) !== ".") ? filename.match(new RegExp(`^[^${typeOfSlash}]*`, "m"))[0] : filename;
     return rmSync(
       resolve(dedicatedTmpDir, filenamePathToRemove),
       { recursive: true }
@@ -797,11 +886,11 @@ async function addCommand(list, archiveFile) {
       })
     }, false);
     if (global.command === "backToMainMenu") {
-      clearLastLines([0, -2])
+      clearLastLines([0, (skipToSection) ? -1 : -2])
       return addCommand(list, archiveFile);
     }
     
-    clearLastLines([0, -2])
+    clearLastLines([0, (skipToSection) ? -1 : -2])
     const dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
     mkdirSync(
       resolve(dedicatedTmpDir, answer), 
@@ -813,28 +902,38 @@ async function addCommand(list, archiveFile) {
     // Deletes only the user-requested directories,
     // not "dedicatedTmpDir"
     return rmSync(
-      resolve(dedicatedTmpDir, answer.match(/^[^\\/]*/m)[0]),
+      resolve(dedicatedTmpDir, answer.match(new RegExp(`^[^${typeOfSlash}]*`, "m"))[0]),
       { recursive: true }
     );
   }
 }
-async function extractCommand(list, archiveFile) {
+async function extractCommand(list, archiveFile, skipToSection) {
   if (archiveFile === undefined) {
     throw new Error("The archive file path is required");
   }
-  if (asyncImports.confirm === "") {
-    const { default: confirm } = await import("@inquirer/confirm");
-    asyncImports.confirm = confirm;
+  
+  // In case the user did a specific shortcut,
+  // skip ahead to the part interested
+  let answer;
+  if (skipToSection === "here" || skipToSection === "elsewhere") {
+    answer = (skipToSection === "here") ? true : false;
+    skipToSection = true;
+  } else skipToSection = false;
+  if (!skipToSection) {
+    if (asyncImports.confirm === "") {
+      const { default: confirm } = await import("@inquirer/confirm");
+      asyncImports.confirm = confirm;
+    }
+    answer = await promptWithKeyPress("quitPlusEsc", () => {
+      return asyncImports.confirm({ 
+        message: 'Extract alongside the archive (y) or elsewhere (n)?',
+        default: true
+      })
+    }, false)
+    addRemove_Keypress("close")
+    clearLastLines([0, -1])
+    if (global.command === "backToMainMenu") return;
   }
-  const answer = await promptWithKeyPress("quitPlusEsc", () => {
-    return asyncImports.confirm({ 
-      message: 'Extract alongside the archive (y) or elsewhere (n)?',
-      default: true
-    })
-  }, false)
-  addRemove_Keypress("close")
-  clearLastLines([0, -1])
-  if (global.command === "backToMainMenu") return;
   
   const specificThings = (list.selected.length > 0) ? list.selected.map(str => `"${str}"`).join(" ") : "";
   if (answer) {
@@ -850,14 +949,14 @@ async function extractCommand(list, archiveFile) {
         type: "file-tree-selection",
         message: "Pick the extraction destination:",
         name: "selected",
-        pageSize: 20,
+        pageSize: inquirerPagePromptsSize,
         enableGoUpperDirectory: true,
         onlyShowDir: true
       })
     })
     addRemove_Keypress("close")
-    clearLastLines([0, -1])
-    if (global.command === "backToMainMenu") return;
+    if (global.command === "backToMainMenu") return clearLastLines([0, -1]);
+    clearLastLines([0, -2])
     
     execSync(`
       7z x "${archiveFile.selected}" ${specificThings} -o"${
@@ -870,13 +969,189 @@ async function extractCommand(list, archiveFile) {
   }
   return;
 }
-async function changeArchive(oldArchiveFile) {
+async function renameCommand(list, archiveFile) {
+  if (archiveFile === undefined) {
+    throw new Error("The archive file path is required");
+  }
+  addRemove_Keypress("close");
+  delete global.command;
+  if (/^\.(?:rar|cab|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chw|hxs|iso|msi|doc|xls|ppt|wim|swm|exe)$/m.test(extname(archiveFile.selected))) {
+    await inquirer.prompt({
+      name: "key",
+      type: "press-to-continue",
+      anyKey: true,
+      pressToContinueMessage: normalYellow+"Cannot rename because of limited 7zip support for this archive format\n"+normal
+    })
+    return clearLastLines([0, -1]);
+  }
+  if (list.selected.length < 1) {
+    await inquirer.prompt({
+      name: "key",
+      type: "press-to-continue",
+      anyKey: true,
+      pressToContinueMessage: normalYellow+"Nothing was selected, cannot rename anything\n"+normal
+    })
+    return clearLastLines([0, -1]);
+  }
+  if (asyncImports.input === "") {
+    const { default: input } = await import("@inquirer/input");
+    asyncImports.input = input;
+  }
+  const forbiddenChars_Win = /^<|>|:|"|\/|\\|\||\?|\*$/m;
+  const forbiddenNames_Win = /CON|PRN|AUX|NUL|COM1|COM2|COM3|COM4|COM5|COM6|COM7|COM8|COM9|LPT1|LPT2|LPT3|LPT4|LPT5|LPT6|LPT7|LPT8|LPT9/;
+  let newName = await promptWithKeyPress("quitPlusEsc", () => {
+    return asyncImports.input({
+      message: "Write the new name:",
+      validate: (str) => {
+        if (/^\s*$/m.test(str)) return "Write down something at least"
+        if (str.includes("/")) {
+          return "Can't use that character in the name"
+        }
+        if (platform === "win32") {
+          if (forbiddenChars_Win.test(str)) {
+            return "One of the characters is forbidden on Windows"
+          }
+          if (forbiddenNames_Win.test(parse(str).name)
+              || forbiddenNames_Win.test(parse(str).ext)) {
+            return "Cannot use that name because on Windows it's reserved"
+          }
+          if (str.endsWith(".") || str.endsWith(" ")) {
+            return "Cannot end with a . or space on Windows"
+          }
+        }
+        return true;
+      },
+      theme: {
+        style: {
+          // Removes the blue answer on the right of the message 
+          // for easier cleaning of the line
+          answer: (str) => ""
+        }
+      }
+    })
+  }, false);
+  addRemove_Keypress("close")
+  if (global.command === "backToMainMenu") return clearLastLines([0, -1]);
+  // Single rename
+  if (list.selected.length === 1) {
+    const selected = list.selected[0];
+    // In case it has the same name, do nothing
+    if (basename(selected) === newName) return clearLastLines([0, -1]);
+    
+    const isInsideDir = (dirname(selected) !== ".") ? true : false;
+    const isDir = (selected.endsWith(sep)) ? true : false;
+    const location = mappedFSStructure.get(
+      (isInsideDir)
+        ? dirname(selected)
+        : "surface"
+    );
+    // Checks if there are identical names same as the new name 
+    // and modifies the new name so that it's unique
+    const locChildren = (isInsideDir) ? location.children : location;
+    for (const path of locChildren) {
+      // Same name directories
+      if (isDir) {
+        if (basename(path) === newName
+            && mappedFSStructure.has(path)) {
+          newName = newName+"(1)";
+          break;
+        }
+        continue;
+      }
+      // Same name files
+      if (basename(path) === newName
+          && !mappedFSStructure.has(path)) {
+        newName = parse(newName).name+"(1)"+parse(newName).ext;
+        break;
+      }
+    }
+    clearLastLines([0, -1])
+    return execSync(`7z rn "${archiveFile.selected}" "${selected}" "${
+        (isInsideDir)
+          ? dirname(selected)+sep+newName
+          : newName
+    }"`);
+  }
+  
+  // Multiple renames
+  let renameString = "";
+  let sameNameCount = 1;
+  list.selected.reduce((oldPath, selected, index) => {
+    // In case it has the same name, do nothing
+    if (basename(selected) === newName) return "";
+    
+    const isInsideDir = (dirname(selected) === ".") ? false : true;
+    const isDir = (selected.endsWith(sep)) ? true : false;
+    const location = mappedFSStructure.get(
+      (isInsideDir) ? dirname(selected) : "surface"
+    );
+    
+    // Checks if there are identical names same as the new name 
+    // and modifies the new name so that it's unique
+    const ogNewName = newName;
+    let foundDuplicate = false;
+    const locChildren = (isInsideDir) ? location.children : location;
+    for (const path of locChildren) {
+      // Same name directories
+      if (isDir) {
+        if (basename(path) === newName
+            && mappedFSStructure.has(path)) {
+          foundDuplicate = true;
+          // Same location
+          if (dirname(oldPath) === dirname(selected)) {
+            if (index !== 0) sameNameCount += 1;
+          } else sameNameCount = 1;
+          newName = newName+`(${sameNameCount})`;
+          break;
+        }
+        continue;
+      }
+      // Same name files
+      if (basename(path) === newName
+          && !mappedFSStructure.has(path)) {
+        foundDuplicate = true;
+        // Same location
+        if (dirname(oldPath) === dirname(selected)) {
+          if (index !== 0) sameNameCount += 1;
+        } else sameNameCount = 1;
+        newName = parse(newName).name+`(${sameNameCount})`+parse(newName).ext;
+        break;
+      }
+    }
+    // In case no duplicates have been found 
+    // but it has several 📂/📄s in the same place
+    if (!foundDuplicate) {
+      // Same location
+      if (dirname(oldPath) === dirname(selected)) {
+        if (index !== 0) sameNameCount += 1;
+        if (isDir) {
+          newName = newName+`(${sameNameCount})`;
+        } else {
+          newName = parse(newName).name+`(${sameNameCount})`+parse(newName).ext;
+        }
+      } else sameNameCount = 1;
+    }
+    renameString += ` "${selected}" "${
+      (isInsideDir)
+        ? dirname(selected)+sep+newName
+        : newName
+    }"`;
+    // Resets to the user provided name before continuing
+    newName = ogNewName;
+    return selected;
+  }, "")
+  clearLastLines([0, -1])
+  // In case it skipped all of the selected 📂/📄s
+  if (!renameString) return;
+  return execSync(`7z rn ${archiveFile.selected} ${renameString}`);
+}
+async function changeArchive() {
   const archiveFile = await promptWithKeyPress("quitPlusEsc", () => {
     return inquirer.prompt({
       type: "file-tree-selection",
       message: "Choose the new archive:",
       name: "selected",
-      pageSize: 20,
+      pageSize: inquirerPagePromptsSize,
       enableGoUpperDirectory: true,
       validate: selected => {
         if (!lstatSync(selected).isFile()) {
@@ -892,7 +1167,7 @@ async function changeArchive(oldArchiveFile) {
   addRemove_Keypress("close")
   if (global.command === "backToMainMenu") {
     clearLastLines([0, -1])
-    return oldArchiveFile;
+    return;
   }
   global.command = "changeCommand";
   clearLastLines([0, -2])
