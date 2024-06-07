@@ -13,7 +13,7 @@ Maybe you want to extract or deleting specific files and typing/copy-pasting can
 
 To install it you'll need installed:
 - NodeJS;
-- 7zip globally installed (more on that [here](#how-7zip-should-be-installed));
+- 7zip and it being globally visible (more on that [here](#how-7zip-should-be-installed));
 - A terminal (Termux or whatever);
 
 then type:
@@ -21,7 +21,7 @@ then type:
 npm install -g tui-7z-archive-manager
 ```
 
-## How 7zip should be installed?
+### How 7zip should be installed?
 
 7zip needs to be visible globally for this tool to work,
 that is:
@@ -31,7 +31,7 @@ Put your 7z.exe's folder path inside _%path%_ variable and if that isn't enough 
 - **On Unix**:
 Just install it with a package manager (or App Store/Software Manager) and it should be already available globally, if that's not enough go find the _7z_ binary file path and add it to the **$PATH** variable permanently;
 
-### How to use it?
+## How to use it?
 
 You'll need to either type `tui7zArchiveM` in the terminal or `node tui-7z-archive-manager.mjs` in the same folder of where the package is installed
 
@@ -42,6 +42,26 @@ Read [COMMAND LINE PARAMETERS](COMMAND-LINE-PARAMETERS.md) for more information 
 Check out the [CHANGELOG](CHANGELOG.md) file for more information.
 
 It will include all changes being made in each version.
+
+## Keyboard shortcuts
+
+Pressing enter will show all the available commands
+
+- `d` → delete command;
+- `c` → move command;
+- `a` → add command;
+- `Ctrl + a` → skips to the selector for adding 📂/📄s;
+- `Meta (alt key) + a` → skips to the file creation;
+- `Shift + a` → skips to the folder creation;
+- `e` → extract command;
+- `Ctrl + e` → skips to the "same place of archive" extraction;
+- `Shift + e` → skips to the "different location" extraction;
+- `r` → rename command;
+- `n` → change archive command;
+
+## Options
+
+1. inquirerPagePrompsSize → the amount of things that prompts can show at once (e.g the list of the archive)
 
 ## Credits
 
