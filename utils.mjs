@@ -2,11 +2,9 @@ import { readFileSync } from "fs"
 import { spawn } from "child_process"
 import { dirname } from "path"
 import { fileURLToPath } from "url"
-import inquirer from "inquirer"
 import oldTreePrompt from "@willowmt/inquirer-tree-prompt"
 import oldInquirerFileTreeSelection from "inquirer-file-tree-selection-prompt"
 
-const strLimit = 40;
 function declareColors() {
   // Custom formatting
   global.normal= "\x1b[0m"
@@ -35,11 +33,6 @@ function escapeRegExp(string) {
 
   // https://stackoverflow.com/a/6969486
 }
-const sleep = time => {
-  return new Promise(resolve => {
-    setTimeout(() => resolve(), time);
-  })
-}
 const onlyUserArgs = args => {
   // Removes the node's exec path and js file path
   args.shift(); args.shift()
@@ -59,6 +52,41 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
       process.stdin.removeListener("keypress", completeEvent)
       process.exit();
     }
+    // file-selection
+    if (key.ctrl && key.name === "a") {
+      (isCustomPrompt) 
+        ? prompt.ui.close()
+        : prompt.cancel()
+      return global.command = "add_FileSelection";
+    }
+    // create-file
+    if (key.meta && key.name === "a") {
+      (isCustomPrompt) 
+        ? prompt.ui.close()
+        : prompt.cancel()
+      return global.command = "add_CreateFile";
+    }
+    // create-folder
+    if (key.shift && key.name === "a") {
+      (isCustomPrompt) 
+        ? prompt.ui.close()
+        : prompt.cancel()
+      return global.command = "add_CreateFolder";
+    }
+    // Extract in the same place as archive
+    if (key.ctrl && key.name === "e") {
+      (isCustomPrompt) 
+        ? prompt.ui.close()
+        : prompt.cancel()
+      return global.command = "extract_here";
+    }
+    // Extract elsewhere
+    if (key.shift && key.name === "e") {
+      (isCustomPrompt) 
+        ? prompt.ui.close()
+        : prompt.cancel()
+      return global.command = "extract_elsewhere";
+    }
     switch (key.name) {
       case "d":
         (isCustomPrompt) 
@@ -77,6 +105,12 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
           ? prompt.ui.close()
           : prompt.cancel()
         global.command = "addCommand";
+        break;
+      case "r":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        global.command = "renameCommand";
         break;
       case "e":
         (isCustomPrompt) 
@@ -159,7 +193,6 @@ const clearLastLines = lines => {
 }
 
 let __filename2 = fileURLToPath(import.meta.url);
-const getCurrentFileName = loc => fileURLToPath(loc);
 const __dirname = dirname(__filename2);
 
 function getStringList(archiveFilePath) {
@@ -259,13 +292,10 @@ class inquirerFileTreeSelection extends oldInquirerFileTreeSelection {
 }
 
 export { 
-  getCurrentFileName,
   __dirname,
   declareColors,
   escapeRegExp,
-  sleep,
   onlyUserArgs,
-  strLimit,
   addRemove_Keypress,
   clearLastLines,
   getStringList,

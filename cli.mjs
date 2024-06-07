@@ -1,9 +1,10 @@
-import { lstatSync, readFileSync } from "fs"
+import { lstatSync, readFileSync, writeFileSync } from "fs"
 import { join, resolve, extname } from "path"
 import inquirer from "inquirer"
 import { 
   __dirname, onlyUserArgs
 } from "./utils.mjs"
+import JSONConfigPath from "./createConfigJSON.mjs"
 
 
 const actUpOnPassedArgs = async (args) => {
@@ -12,7 +13,7 @@ const actUpOnPassedArgs = async (args) => {
   if (newArguments.length !== 0) {
     for (const arg of newArguments) {
       switch (arg) {
-        case /^(--path|-p|\/p)$/.test(arg) && arg: {
+        case /^(--path|\/path|-p|\/p)$/.test(arg) && arg: {
           // In case there's no other argument
           const indexOfArg = newArguments.indexOf(arg);
           if (newArguments[indexOfArg + 1] === undefined) throw new ReferenceError("Missing necessary argument");
@@ -20,15 +21,23 @@ const actUpOnPassedArgs = async (args) => {
           lastParam = "pathToArchive"
           break;
         }
-        case /^(--yes|-y|\/y)$/.test(arg) && arg: {
+        case /^(--pagesize|\/pagesize|-ps|\/ps)$/.test(arg) && arg: {
+          // In case there's no other argument
+          const indexOfArg = newArguments.indexOf(arg);
+          if (newArguments[indexOfArg + 1] === undefined) throw new ReferenceError("Missing necessary argument");
+          
+          lastParam = "pageSize"
+          break;
+        }
+        case /^(--yes|\/yes|-y|\/y)$/.test(arg) && arg: {
           autoConfirmation()
           break;
         }
-        case /^(--help|-h|\/h|\/\?)$/.test(arg) && arg: {
+        case /^(--help|\/help|-h|\/h|\/\?)$/.test(arg) && arg: {
           help()
           process.exit()
         }
-        case /^(--version|-v|\/v)$/.test(arg) && arg: {
+        case /^(--version|\/version|-v|\/v)$/.test(arg) && arg: {
           version()
           process.exit()
         }
@@ -37,6 +46,10 @@ const actUpOnPassedArgs = async (args) => {
           if (lastParam === "pathToArchive") {
             setArchiveFilePath(arg)
             break;
+          }
+          if (lastParam === "pageSize") {
+            updatePageSize(arg)
+            process.exit();
           }
           // Invalid param
           console.log(red+`'${
@@ -51,6 +64,20 @@ const actUpOnPassedArgs = async (args) => {
   }
 }
 const autoConfirmation = () => global.autoConfirm = true;
+const updatePageSize = arg => {
+  if (!Number.isInteger(parseInt(arg))
+      || !/^\d*$/m.test(arg)) {
+    console.log(yellow+"A number is needed"+normal);
+    process.exit()
+  }
+  const oldConfigFile = JSON.parse(readFileSync(JSONConfigPath).toString());
+  oldConfigFile.inquirerPagePromptsSize = parseInt(arg);
+  
+  return writeFileSync(
+    JSONConfigPath, 
+    JSON.stringify(oldConfigFile)
+  );
+}
 const setArchiveFilePath = path => {
   try {
     if (!lstatSync(path).isFile()) {
@@ -75,16 +102,19 @@ const help = () => {
   ${dimGrayBold}A tui manager for organising archives${normal}
   
   Available parameters:
-    ${green}--path${normal}, ${green}-p${normal}, ${green}/p${normal}:
+    ${green}--path${normal}, ${green}/path${normal}, ${green}-p${normal}, ${green}/p${normal}:
       ${dimGray+italics}Sets the archive file path${normal}
     
-    ${green}--yes${normal}, ${green}-y${normal}, ${green}/y${normal}:
+    ${green}--pagesize${normal}, ${green}/pagesize${normal}, ${green}-ps${normal}, ${green}/ps${normal}:
+      ${dimGray+italics}Sets the amount of things that prompts can show at once${normal}
+    
+    ${green}--yes${normal}, ${green}/yes${normal}, ${green}-y${normal}, ${green}/y${normal}:
       ${dimGray+italics}Auto-confirm deletions${normal}
     
-    ${green}--help${normal}, ${green}-h${normal}, ${green}/h${normal}, ${green}/?${normal}:
+    ${green}--help${normal}, ${green}/help${normal}, ${green}-h${normal}, ${green}/h${normal}, ${green}/?${normal}:
       ${dimGray+italics}Shows this help message${normal}
     
-    ${green}--version${normal}, ${green}-v${normal}, ${green}/v${normal}:
+    ${green}--version${normal}, ${green}/version${normal}, ${green}-v${normal}, ${green}/v${normal}:
       ${dimGray+italics}Shows the installed version${normal}
   `
   console.log(helpText)

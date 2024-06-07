@@ -1,17 +1,21 @@
 ## COMMAND LINE PARAMETERS
 
-### --path, -p, /p:
+### --path, /path, -p, /p:
 
 Sets the archive file path
 
-### --yes, -y, /y:
+### --pagesize, /pagesize, -ps, /ps
+
+Sets the amount of things that prompts can show at once
+
+### --yes, /yes, -y, /y:
 
 Auto-confirm deletions
 
-### --help, -h, /h, /?:
+### --help, /help, -h, /h, /?:
 
 Shows the help message
 
-### --version, -v, /v:
+### --version, /version, -v, /v:
 
 Shows the installed version

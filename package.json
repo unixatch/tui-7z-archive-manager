@@ -28,7 +28,9 @@
     "tui7zArchiveM": "tui-7z-archive-manager.mjs"
   },
   "scripts": {
-    "test": "node tui-7z-archive-manager.mjs"
+    "test": "node tui-7z-archive-manager.mjs",
+    "prepare": "node createConfigJSON.mjs",
+    "postinstall": "node createConfigJSON.mjs"
   },
   "author": "unixatch",
   "license": "GPL-2.0-or-later",
