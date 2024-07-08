@@ -1,3 +1,20 @@
+/*
+  Copyright (C) 2024  unixatch
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with tui-7z-archive-manager.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 import { readFileSync } from "fs"
 import { spawn } from "child_process"
 import { dirname } from "path"
@@ -30,8 +47,6 @@ function escapeRegExp(string) {
   // $& —→ the whole string being identified/matched
   return string
     .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-  // https://stackoverflow.com/a/6969486
 }
 const onlyUserArgs = args => {
   // Removes the node's exec path and js file path
