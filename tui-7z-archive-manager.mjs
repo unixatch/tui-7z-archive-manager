@@ -24,8 +24,15 @@ try {
   console.log("\x1b[31;1m"+"7zip is not installed or it's not visible globally"+"\x1b[0m");
   process.exit()
 }
-import { tmpdir } from "os"
-import { 
+// In case the user passes some arguments
+const userArgs = process.argv.slice(2);
+if (userArgs.length > 0) {
+  const { actUpOnPassedArgs } = await import("./cli.mjs");
+  await actUpOnPassedArgs(process.argv)
+}
+
+const { tmpdir } = await import("os");
+const { 
   lstatSync,
   readdirSync,
   readFileSync,
@@ -35,18 +42,18 @@ import {
   writeFileSync,
   renameSync,
   rmSync
-} from "fs"
-import { 
+} = await import("fs");
+const { 
   sep,
   parse,
   basename,
   extname,
   dirname,
   resolve
-} from "path"
-import { platform } from "process"
+} = await import("path");
+const { platform } = await import("process");
 
-import {
+const {
   escapeRegExp,
   clearLastLines,
   addRemove_Keypress,
@@ -54,12 +61,11 @@ import {
   promptWithKeyPress,
   TreePrompt,
   inquirerFileTreeSelection
-} from "./utils.mjs"
-import actUpOnPassedArgs from "./cli.mjs"
-import JSONConfigPath from "./createConfigJSON.mjs"
+} = await import("./utils/utils.mjs");
+const { default: JSONConfigPath } = await import("./createConfigJSON.mjs");
 
-import inquirer from "inquirer"
-import PressToContinuePrompt from 'inquirer-press-to-continue';
+const { default: inquirer } = await import("inquirer");
+const { PressToContinuePrompt } = await import('inquirer-press-to-continue');
 inquirer.registerPrompt("file-tree-selection", inquirerFileTreeSelection)
 inquirer.registerPrompt("tree", TreePrompt)
 inquirer.registerPrompt('press-to-continue', PressToContinuePrompt);
@@ -75,9 +81,6 @@ let onlyDirectories,
 // Windows compatibility
 const typeOfSlash = (platform === "win32") ? "\\\\" : "\\/";
 
-
-// In case the user passes some arguments
-await actUpOnPassedArgs(process.argv)
 
 // User's configurations
 const { inquirerPagePromptsSize } = JSON.parse(readFileSync(JSONConfigPath).toString());

@@ -17,20 +17,17 @@
 
 import { lstatSync, readFileSync, writeFileSync } from "fs"
 import { join, resolve, extname } from "path"
-import inquirer from "inquirer"
-import { 
-  __dirname, onlyUserArgs
-} from "./utils.mjs"
+import { __dirname } from "./utils/cli_utils.mjs"
 import JSONConfigPath from "./createConfigJSON.mjs"
 
 
 const actUpOnPassedArgs = async (args) => {
   let lastParam;
-  const newArguments = onlyUserArgs(args);
+  const newArguments = args.slice(2);
   if (newArguments.length !== 0) {
     for (const arg of newArguments) {
       switch (arg) {
-        case /^(--path|\/path|-p|\/p)$/.test(arg) && arg: {
+        case /^(?:--path|\/path|-p|\/p)$/.test(arg) && arg: {
           // In case there's no other argument
           const indexOfArg = newArguments.indexOf(arg);
           if (newArguments[indexOfArg + 1] === undefined) throw new ReferenceError("Missing necessary argument");
@@ -38,7 +35,7 @@ const actUpOnPassedArgs = async (args) => {
           lastParam = "pathToArchive"
           break;
         }
-        case /^(--pagesize|\/pagesize|-ps|\/ps)$/.test(arg) && arg: {
+        case /^(?:--pagesize|\/pagesize|-ps|\/ps)$/.test(arg) && arg: {
           // In case there's no other argument
           const indexOfArg = newArguments.indexOf(arg);
           if (newArguments[indexOfArg + 1] === undefined) throw new ReferenceError("Missing necessary argument");
@@ -46,15 +43,15 @@ const actUpOnPassedArgs = async (args) => {
           lastParam = "pageSize"
           break;
         }
-        case /^(--yes|\/yes|-y|\/y)$/.test(arg) && arg: {
+        case /^(?:--yes|\/yes|-y|\/y)$/.test(arg) && arg: {
           autoConfirmation()
           break;
         }
-        case /^(--help|\/help|-h|\/h|\/\?)$/.test(arg) && arg: {
+        case /^(?:--help|\/help|-h|\/h|\/\?)$/.test(arg) && arg: {
           help()
           process.exit()
         }
-        case /^(--version|\/version|-v|\/v)$/.test(arg) && arg: {
+        case /^(?:--version|\/version|-v|\/v)$/.test(arg) && arg: {
           version()
           process.exit()
         }
@@ -143,4 +140,6 @@ const version = () => {
   console.log(`${green + version + normal}`)
 }
 
-export default actUpOnPassedArgs
+export {
+  actUpOnPassedArgs
+}

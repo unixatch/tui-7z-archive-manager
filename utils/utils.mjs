@@ -17,8 +17,6 @@
 
 import { readFileSync } from "fs"
 import { spawn } from "child_process"
-import { dirname } from "path"
-import { fileURLToPath } from "url"
 import oldTreePrompt from "@willowmt/inquirer-tree-prompt"
 import oldInquirerFileTreeSelection from "inquirer-file-tree-selection-prompt"
 
@@ -47,11 +45,6 @@ function escapeRegExp(string) {
   // $& —→ the whole string being identified/matched
   return string
     .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-const onlyUserArgs = args => {
-  // Removes the node's exec path and js file path
-  args.shift(); args.shift()
-  return args;
 }
 
 const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
@@ -207,9 +200,6 @@ const clearLastLines = lines => {
     .clearScreenDown();
 }
 
-let __filename2 = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename2);
-
 function getStringList(archiveFilePath) {
   if (archiveFilePath === undefined) {
     return new Error("A file path is required")
@@ -307,10 +297,8 @@ class inquirerFileTreeSelection extends oldInquirerFileTreeSelection {
 }
 
 export { 
-  __dirname,
   declareColors,
   escapeRegExp,
-  onlyUserArgs,
   addRemove_Keypress,
   clearLastLines,
   getStringList,
