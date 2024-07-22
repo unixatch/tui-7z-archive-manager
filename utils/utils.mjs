@@ -19,6 +19,7 @@ import { readFileSync } from "fs"
 import { spawn } from "child_process"
 import oldTreePrompt from "@willowmt/inquirer-tree-prompt"
 import oldInquirerFileTreeSelection from "inquirer-file-tree-selection-prompt"
+import oldPressToContinuePrompt from "inquirer-press-to-continue"
 
 function declareColors() {
   // Custom formatting
@@ -295,6 +296,14 @@ class inquirerFileTreeSelection extends oldInquirerFileTreeSelection {
     this.onSubmit(this);
   }
 }
+class PressToContinuePrompt extends oldPressToContinuePrompt {
+  constructor(questions, rl, answers) {
+    super(questions, rl, answers)
+  }
+  close() {
+    this._done()
+  }
+}
 
 export { 
   declareColors,
@@ -304,5 +313,6 @@ export {
   getStringList,
   promptWithKeyPress,
   TreePrompt,
-  inquirerFileTreeSelection
+  inquirerFileTreeSelection,
+  PressToContinuePrompt
 }
