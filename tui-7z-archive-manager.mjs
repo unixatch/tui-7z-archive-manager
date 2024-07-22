@@ -60,15 +60,24 @@ const {
   getStringList,
   promptWithKeyPress,
   TreePrompt,
-  inquirerFileTreeSelection
+  inquirerFileTreeSelection,
+  PressToContinuePrompt
 } = await import("./utils/utils.mjs");
 const { default: JSONConfigPath } = await import("./createConfigJSON.mjs");
 
 const { default: inquirer } = await import("inquirer");
-const { PressToContinuePrompt } = await import('inquirer-press-to-continue');
 inquirer.registerPrompt("file-tree-selection", inquirerFileTreeSelection)
 inquirer.registerPrompt("tree", TreePrompt)
 inquirer.registerPrompt('press-to-continue', PressToContinuePrompt);
+const waitingMessagePrompt = (message) => {
+  const prompt = inquirer.prompt({
+    name: "key",
+    type: "press-to-continue",
+    anyKey: false,
+    pressToContinueMessage: message
+  })
+  return prompt.ui.activePrompt;
+}
 const asyncImports = {
   select: "",
   input: "",
@@ -147,10 +156,10 @@ async function createMap(archiveFilePassed) {
 
   const regexes = [
     (extname(archiveFile.selected) === ".7z") 
-      ? /Path = (.*)\nAttributes = D_/g // 7zip
+      ? /Path = (.*)\nAttributes = D/g // 7zip
       : /Path = (.*)\nFolder = \+/g, // Others
     (extname(archiveFile.selected) === ".7z") 
-      ? /Path = (.*)\nAttributes = A_/g // 7zip
+      ? /Path = (.*)\nAttributes = A/g // 7zip
       : /Path = (.*)\nFolder = -/g // Others
   ]
   mappedFSStructure = new Map();
@@ -158,6 +167,16 @@ async function createMap(archiveFilePassed) {
     listOfArchive.matchAll(regexes[0]),
     (matchArray) => matchArray[1]
   );
+  // For cases where there's a slash at the end that should not be there
+  if (onlyDirectories[0]?.endsWith(
+        (platform === "win32")
+          ? "\\"
+          : "/")
+      ) {
+    onlyDirectories = onlyDirectories.map(
+      dir => dir.replace(new RegExp(`${typeOfSlash}$`, "m"), "")
+    );
+  }
   onlyFiles = Array.from(
     listOfArchive.matchAll(regexes[1]),
     (matchArray) => matchArray[1]
@@ -608,13 +627,16 @@ async function deleteCommand(list, archiveFile) {
     if (!answer) return;
   }
   
-  return execSync(`
+  const waitingMessage = waitingMessagePrompt(gray+"Deleting the selected 📄/📂, might take a while..."+normal);
+  execSync(`
     7z d "${archiveFile.selected}" ${
       list.selected
         .map(str => `"${str}"`) // Because of spaces
         .join(" ") // Because of defaults
     }
   `);
+  waitingMessage.close()
+  return clearLastLines([0, -1]);
 }
 async function cutCommand(list, archiveFile) {
   if (archiveFile === undefined) {
@@ -668,6 +690,7 @@ async function cutCommand(list, archiveFile) {
   // Cleans the gray text and message duplicate
   clearLastLines([0, -3])
   mappedFSStructure.set("surface", surface)
+  const waitingMessage = waitingMessagePrompt(gray+"Moving the selected 📄/📂, might take a while..."+normal)
   // Moving part
   list.selected.forEach((path) => {
     if (newLocation.selected === ".") {
@@ -679,7 +702,8 @@ async function cutCommand(list, archiveFile) {
       7z rn "${archiveFile.selected}" ${path} ${newLocation.selected+basename(path)}
     `)
   })
-  return
+  waitingMessage.close()
+  return clearLastLines([0, -1]);
 }
 async function addCommand(list, archiveFile, skipToSection) {
   if (archiveFile === undefined) {
@@ -783,13 +807,16 @@ async function addCommand(list, archiveFile, skipToSection) {
     const fromFs = await getFromFs();
     if (global.command === "backToMainMenu") return addCommand(list, archiveFile);
     
-    return execSync(`
+    const waitingMessage = waitingMessagePrompt(gray+"Adding the selected 📄/📂, might take a while..."+normal)
+    execSync(`
       7z a "${archiveFile.selected}" ${
         fromFs.selection
           .map(str => `"${str}"`) // Because of spaces
           .join(" ") // Because of defaults
       }
     `);
+    waitingMessage.close()
+    return clearLastLines([0, -1]);
   }
   if (action === "create-file") {
     if (asyncImports.editor === "") {
@@ -871,15 +898,18 @@ async function addCommand(list, archiveFile, skipToSection) {
         fileContent
       )
     }
+    const waitingMessage = waitingMessagePrompt(gray+"Adding the new 📄, might take a while..."+normal)
     execSync(`
       7z a "${archiveFile.selected}" ${dedicatedTmpDir}/*
     `)
     
     const filenamePathToRemove = (dirname(filename) !== ".") ? filename.match(new RegExp(`^[^${typeOfSlash}]*`, "m"))[0] : filename;
-    return rmSync(
+    rmSync(
       resolve(dedicatedTmpDir, filenamePathToRemove),
       { recursive: true }
     );
+    waitingMessage.close()
+    return clearLastLines([0, -1]);
   }
   if (action === "create-folder") {
     if (asyncImports.input === "") {
@@ -918,6 +948,7 @@ async function addCommand(list, archiveFile, skipToSection) {
     }
     
     clearLastLines([0, (skipToSection) ? -1 : -2])
+    const waitingMessage = waitingMessagePrompt(gray+"Adding the new 📂, might take a while..."+normal)
     const dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
     mkdirSync(
       resolve(dedicatedTmpDir, answer), 
@@ -928,10 +959,12 @@ async function addCommand(list, archiveFile, skipToSection) {
     `)
     // Deletes only the user-requested directories,
     // not "dedicatedTmpDir"
-    return rmSync(
+    rmSync(
       resolve(dedicatedTmpDir, answer.match(new RegExp(`^[^${typeOfSlash}]*`, "m"))[0]),
       { recursive: true }
     );
+    waitingMessage.close()
+    return clearLastLines([0, -1]);
   }
 }
 async function extractCommand(list, archiveFile, skipToSection) {
@@ -963,7 +996,9 @@ async function extractCommand(list, archiveFile, skipToSection) {
   }
   
   const specificThings = (list.selected.length > 0) ? list.selected.map(str => `"${str}"`).join(" ") : "";
+  let waitingMessage;
   if (answer) {
+    waitingMessage = waitingMessagePrompt(gray+"Extracting the selected 📄/📂, might take a while..."+normal);
     execSync(`7z x "${archiveFile.selected}" ${specificThings} -o${
       resolve(
         dirname(archiveFile.selected), 
@@ -985,6 +1020,7 @@ async function extractCommand(list, archiveFile, skipToSection) {
     if (global.command === "backToMainMenu") return clearLastLines([0, -1]);
     clearLastLines([0, -2])
     
+    waitingMessage = waitingMessagePrompt(gray+"Extracting the selected 📄/📂, might take a while..."+normal);
     execSync(`
       7z x "${archiveFile.selected}" ${specificThings} -o"${
         resolve(
@@ -994,7 +1030,8 @@ async function extractCommand(list, archiveFile, skipToSection) {
       }"
     `)
   }
-  return;
+  waitingMessage.close()
+  return clearLastLines([0, -1]);
 }
 async function renameCommand(list, archiveFile) {
   if (archiveFile === undefined) {
@@ -1094,11 +1131,14 @@ async function renameCommand(list, archiveFile) {
       }
     }
     clearLastLines([0, -1])
-    return execSync(`7z rn "${archiveFile.selected}" "${selected}" "${
+    const waitingMessage = waitingMessagePrompt(gray+"Renaming the selected 📄/📂, might take a while..."+normal)
+    execSync(`7z rn "${archiveFile.selected}" "${selected}" "${
         (isInsideDir)
           ? dirname(selected)+sep+newName
           : newName
     }"`);
+    waitingMessage.close()
+    return clearLastLines([0, -1]);
   }
   
   // Multiple renames
@@ -1171,7 +1211,10 @@ async function renameCommand(list, archiveFile) {
   clearLastLines([0, -1])
   // In case it skipped all of the selected 📂/📄s
   if (!renameString) return;
-  return execSync(`7z rn ${archiveFile.selected} ${renameString}`);
+  const waitingMessage = waitingMessagePrompt(gray+"Renaming the selected 📄/📂, might take a while..."+normal)
+  execSync(`7z rn ${archiveFile.selected} ${renameString}`);
+  waitingMessage.close()
+  return clearLastLines([0, -1]);
 }
 async function changeArchive() {
   const archiveFile = await promptWithKeyPress("quitPlusEsc", () => {
