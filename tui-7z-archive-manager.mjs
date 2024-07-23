@@ -635,8 +635,7 @@ async function deleteCommand(list, archiveFile) {
         .join(" ") // Because of defaults
     }
   `);
-  waitingMessage.close()
-  return clearLastLines([0, -1]);
+  return waitingMessage.close();
 }
 async function cutCommand(list, archiveFile) {
   if (archiveFile === undefined) {
@@ -702,8 +701,7 @@ async function cutCommand(list, archiveFile) {
       7z rn "${archiveFile.selected}" ${path} ${newLocation.selected+basename(path)}
     `)
   })
-  waitingMessage.close()
-  return clearLastLines([0, -1]);
+  return waitingMessage.close();
 }
 async function addCommand(list, archiveFile, skipToSection) {
   if (archiveFile === undefined) {
@@ -815,8 +813,7 @@ async function addCommand(list, archiveFile, skipToSection) {
           .join(" ") // Because of defaults
       }
     `);
-    waitingMessage.close()
-    return clearLastLines([0, -1]);
+    return waitingMessage.close();
   }
   if (action === "create-file") {
     if (asyncImports.editor === "") {
@@ -880,6 +877,7 @@ async function addCommand(list, archiveFile, skipToSection) {
     }
     
     clearLastLines([0, (skipToSection) ? -2 : -3])
+    const waitingMessage = waitingMessagePrompt(gray+"Adding the new 📄, might take a while..."+normal)
     // Creation part
     let dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
     if (dirname(filename) !== ".") {
@@ -898,7 +896,6 @@ async function addCommand(list, archiveFile, skipToSection) {
         fileContent
       )
     }
-    const waitingMessage = waitingMessagePrompt(gray+"Adding the new 📄, might take a while..."+normal)
     execSync(`
       7z a "${archiveFile.selected}" ${dedicatedTmpDir}/*
     `)
@@ -908,8 +905,7 @@ async function addCommand(list, archiveFile, skipToSection) {
       resolve(dedicatedTmpDir, filenamePathToRemove),
       { recursive: true }
     );
-    waitingMessage.close()
-    return clearLastLines([0, -1]);
+    return waitingMessage.close();
   }
   if (action === "create-folder") {
     if (asyncImports.input === "") {
@@ -963,8 +959,7 @@ async function addCommand(list, archiveFile, skipToSection) {
       resolve(dedicatedTmpDir, answer.match(new RegExp(`^[^${typeOfSlash}]*`, "m"))[0]),
       { recursive: true }
     );
-    waitingMessage.close()
-    return clearLastLines([0, -1]);
+    return waitingMessage.close();
   }
 }
 async function extractCommand(list, archiveFile, skipToSection) {
@@ -1030,8 +1025,7 @@ async function extractCommand(list, archiveFile, skipToSection) {
       }"
     `)
   }
-  waitingMessage.close()
-  return clearLastLines([0, -1]);
+  return waitingMessage.close();
 }
 async function renameCommand(list, archiveFile) {
   if (archiveFile === undefined) {
@@ -1096,12 +1090,13 @@ async function renameCommand(list, archiveFile) {
     })
   }, false);
   addRemove_Keypress("close")
+  clearLastLines([0, -1])
   if (global.command === "backToMainMenu") return clearLastLines([0, -1]);
   // Single rename
   if (list.selected.length === 1) {
     const selected = list.selected[0];
     // In case it has the same name, do nothing
-    if (basename(selected) === newName) return clearLastLines([0, -1]);
+    if (basename(selected) === newName) return;
     
     const isInsideDir = (dirname(selected) !== ".") ? true : false;
     const isDir = (selected.endsWith(sep)) ? true : false;
@@ -1130,15 +1125,13 @@ async function renameCommand(list, archiveFile) {
         break;
       }
     }
-    clearLastLines([0, -1])
     const waitingMessage = waitingMessagePrompt(gray+"Renaming the selected 📄/📂, might take a while..."+normal)
     execSync(`7z rn "${archiveFile.selected}" "${selected}" "${
         (isInsideDir)
           ? dirname(selected)+sep+newName
           : newName
     }"`);
-    waitingMessage.close()
-    return clearLastLines([0, -1]);
+    return waitingMessage.close();
   }
   
   // Multiple renames
@@ -1208,13 +1201,11 @@ async function renameCommand(list, archiveFile) {
     newName = ogNewName;
     return selected;
   }, "")
-  clearLastLines([0, -1])
   // In case it skipped all of the selected 📂/📄s
   if (!renameString) return;
   const waitingMessage = waitingMessagePrompt(gray+"Renaming the selected 📄/📂, might take a while..."+normal)
   execSync(`7z rn ${archiveFile.selected} ${renameString}`);
-  waitingMessage.close()
-  return clearLastLines([0, -1]);
+  return waitingMessage.close();
 }
 async function changeArchive() {
   const archiveFile = await promptWithKeyPress("quitPlusEsc", () => {
