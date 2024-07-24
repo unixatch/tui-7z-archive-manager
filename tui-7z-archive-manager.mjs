@@ -16,9 +16,9 @@
     along with tui-7z-archive-manager.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { execSync } from "child_process"
 // Detects if 7zip is installed correctly
 try {
+  const { execSync } = await import("child_process");
   execSync("7z")
 } catch (e) {
   console.log("\x1b[31;1m"+"7zip is not installed or it's not visible globally"+"\x1b[0m");
@@ -61,7 +61,8 @@ const {
   promptWithKeyPress,
   TreePrompt,
   inquirerFileTreeSelection,
-  PressToContinuePrompt
+  PressToContinuePrompt,
+  execute7zCommand
 } = await import("./utils/utils.mjs");
 const { default: JSONConfigPath } = await import("./createConfigJSON.mjs");
 
@@ -602,12 +603,12 @@ async function deleteCommand(list, archiveFile) {
       asyncImports.confirm = confirm;
     }
     
-    const terminalRows = process.stdout.rows;
+    const terminalColumns = process.stdout.columns;
     process.stdout.write("\n")
     list.selected.forEach((selected) => {
       console.log(
         green,
-        (selected.length > terminalRows)
+        (selected.length > terminalColumns)
             // Truncates the start so that 
             // it fits the screen if necessary
           ? selected.replace(/^.{5}/m, "...")
@@ -628,14 +629,9 @@ async function deleteCommand(list, archiveFile) {
   }
   
   const waitingMessage = waitingMessagePrompt(gray+"Deleting the selected 📄/📂, might take a while..."+normal);
-  execSync(`
-    7z d "${archiveFile.selected}" ${
-      list.selected
-        .map(str => `"${str}"`) // Because of spaces
-        .join(" ") // Because of defaults
-    }
-  `);
-  return waitingMessage.close();
+  await execute7zCommand(["d", archiveFile.selected, ...list.selected])
+  waitingMessage.close()
+  return clearLastLines([0, -1]);
 }
 async function cutCommand(list, archiveFile) {
   if (archiveFile === undefined) {
@@ -691,15 +687,21 @@ async function cutCommand(list, archiveFile) {
   mappedFSStructure.set("surface", surface)
   const waitingMessage = waitingMessagePrompt(gray+"Moving the selected 📄/📂, might take a while..."+normal)
   // Moving part
-  list.selected.forEach((path) => {
+  list.selected.forEach(async (path) => {
     if (newLocation.selected === ".") {
-      return execSync(`
-        7z rn "${archiveFile.selected}" "${path}" "${basename(path)}"
-      `)
+      return await execute7zCommand([
+        "rn", 
+        archiveFile.selected,
+        path,
+        basename(path)
+      ])
     }
-    execSync(`
-      7z rn "${archiveFile.selected}" ${path} ${newLocation.selected+basename(path)}
-    `)
+    await execute7zCommand([
+      "rn",
+      archiveFile.selected,
+      path,
+      newLocation.selected+basename(path)
+    ])
   })
   return waitingMessage.close();
 }
@@ -799,20 +801,14 @@ async function addCommand(list, archiveFile, skipToSection) {
         return getFromFs();
       }
       addRemove_Keypress("close")
-      clearLastLines([0, (skipToSection) ? -2 : -4])
+      clearLastLines([0, (skipToSection) ? -2 : -3])
       return fromFs;
     }
     const fromFs = await getFromFs();
     if (global.command === "backToMainMenu") return addCommand(list, archiveFile);
     
     const waitingMessage = waitingMessagePrompt(gray+"Adding the selected 📄/📂, might take a while..."+normal)
-    execSync(`
-      7z a "${archiveFile.selected}" ${
-        fromFs.selection
-          .map(str => `"${str}"`) // Because of spaces
-          .join(" ") // Because of defaults
-      }
-    `);
+    await execute7zCommand(["a", archiveFile.selected, ...fromFs.selection])
     return waitingMessage.close();
   }
   if (action === "create-file") {
@@ -896,9 +892,7 @@ async function addCommand(list, archiveFile, skipToSection) {
         fileContent
       )
     }
-    execSync(`
-      7z a "${archiveFile.selected}" ${dedicatedTmpDir}/*
-    `)
+    await execute7zCommand(["a", archiveFile.selected, dedicatedTmpDir+"/*"])
     
     const filenamePathToRemove = (dirname(filename) !== ".") ? filename.match(new RegExp(`^[^${typeOfSlash}]*`, "m"))[0] : filename;
     rmSync(
@@ -950,9 +944,7 @@ async function addCommand(list, archiveFile, skipToSection) {
       resolve(dedicatedTmpDir, answer), 
       { recursive: true }
     )
-    execSync(`
-      7z a "${archiveFile.selected}" ${dedicatedTmpDir}/*
-    `)
+    await execute7zCommand(["a", archiveFile.selected, dedicatedTmpDir+"/*"])
     // Deletes only the user-requested directories,
     // not "dedicatedTmpDir"
     rmSync(
@@ -990,16 +982,19 @@ async function extractCommand(list, archiveFile, skipToSection) {
     if (global.command === "backToMainMenu") return;
   }
   
-  const specificThings = (list.selected.length > 0) ? list.selected.map(str => `"${str}"`).join(" ") : "";
+  const specificThings = (list.selected.length > 0) ? list.selected : [""];
   let waitingMessage;
   if (answer) {
     waitingMessage = waitingMessagePrompt(gray+"Extracting the selected 📄/📂, might take a while..."+normal);
-    execSync(`7z x "${archiveFile.selected}" ${specificThings} -o${
-      resolve(
+    await execute7zCommand([
+      "x",
+      archiveFile.selected,
+      ...specificThings,
+      "-o" + resolve(
         dirname(archiveFile.selected), 
         "extracted_"+parse(archiveFile.selected).name+"_"+Math.floor(Math.random() * 1000000)
       )
-    }`)
+    ])
   } else {
     const extractLocation = await promptWithKeyPress("quitPlusEsc", () => {
       return inquirer.prompt({
@@ -1016,14 +1011,15 @@ async function extractCommand(list, archiveFile, skipToSection) {
     clearLastLines([0, -2])
     
     waitingMessage = waitingMessagePrompt(gray+"Extracting the selected 📄/📂, might take a while..."+normal);
-    execSync(`
-      7z x "${archiveFile.selected}" ${specificThings} -o"${
-        resolve(
-          extractLocation.selected, 
-          "extracted_"+parse(archiveFile.selected).name+"_"+Math.floor(Math.random() * 1000000)
-        )
-      }"
-    `)
+    await execute7zCommand([
+      "x",
+      archiveFile.selected,
+      ...specificThings,
+      "-o" + resolve(
+        extractLocation.selected, 
+        "extracted_"+parse(archiveFile.selected).name+"_"+Math.floor(Math.random() * 1000000)
+      )
+    ])
   }
   return waitingMessage.close();
 }
@@ -1126,16 +1122,19 @@ async function renameCommand(list, archiveFile) {
       }
     }
     const waitingMessage = waitingMessagePrompt(gray+"Renaming the selected 📄/📂, might take a while..."+normal)
-    execSync(`7z rn "${archiveFile.selected}" "${selected}" "${
-        (isInsideDir)
-          ? dirname(selected)+sep+newName
-          : newName
-    }"`);
+    await execute7zCommand([
+      "rn",
+      archiveFile.selected,
+      selected,
+      (isInsideDir)
+        ? dirname(selected)+sep+newName
+        : newName
+    ])
     return waitingMessage.close();
   }
   
   // Multiple renames
-  let renameString = "";
+  let renameArray = [];
   let sameNameCount = 1;
   list.selected.reduce((oldPath, selected, index) => {
     // In case it has the same name, do nothing
@@ -1192,19 +1191,20 @@ async function renameCommand(list, archiveFile) {
         }
       } else sameNameCount = 1;
     }
-    renameString += ` "${selected}" "${
+    renameArray.push(
+      selected,
       (isInsideDir)
         ? dirname(selected)+sep+newName
         : newName
-    }"`;
+    )
     // Resets to the user provided name before continuing
     newName = ogNewName;
     return selected;
   }, "")
   // In case it skipped all of the selected 📂/📄s
-  if (!renameString) return;
+  if (renameArray.length === 0) return;
   const waitingMessage = waitingMessagePrompt(gray+"Renaming the selected 📄/📂, might take a while..."+normal)
-  execSync(`7z rn ${archiveFile.selected} ${renameString}`);
+  await execute7zCommand(["rn", archiveFile.selected, ...renameArray])
   return waitingMessage.close();
 }
 async function changeArchive() {

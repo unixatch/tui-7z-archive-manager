@@ -216,7 +216,7 @@ function getStringList(archiveFilePath) {
     stream.on("close", returnCode => {
       return (returnCode > 0)
         // Or bad after it started
-        ? reject(new Error(dataStderr)) 
+        ? reject(new Error(returnCode, dataStderr)) 
         : resolve(dataStdout);
     })
     
@@ -226,6 +226,23 @@ function getStringList(archiveFilePath) {
     })
     stream.on("error", err => {
       reject(err)
+    })
+  })
+}
+function execute7zCommand(argumentsFor7z) {
+  if (argumentsFor7z === undefined) {
+    return new Error("Arguments are needed for 7z")
+  }
+  if (!argumentsFor7z instanceof Array) {
+    return new TypeError("An array of arguments are needed")
+  }
+  return new Promise((resolve, reject) => {
+    const process = spawn("7z", argumentsFor7z);
+    process.on("close", exitCode => {
+      if (exitCode !== 0) {
+        reject("7z stopped with error code "+exitCode)
+      }
+      resolve()
     })
   })
 }
@@ -314,5 +331,6 @@ export {
   promptWithKeyPress,
   TreePrompt,
   inquirerFileTreeSelection,
-  PressToContinuePrompt
+  PressToContinuePrompt,
+  execute7zCommand
 }
