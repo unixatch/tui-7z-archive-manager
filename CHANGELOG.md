@@ -1,3 +1,19 @@
+# CHANGELOG v.1.1.1
+
+- Fixed how the list of soon-to-be deleted 📄/📂 shown on screen trims long names;
+
+- Modified how 7z commands are run;
+
+- Fixed some regex detections;
+
+- Fixed some unexpected slashes at the end of paths for the algorithm;
+
+- Added new waiting messages while waiting for 7z commands to finish their work;
+
+- Added a lot of 7z supported formats that "7z i" reports;
+
+- Improved loading times on certain actions;
+
 # CHANGELOG v.1.1.0
 
 - Fixed Windows compatibility by changing the slash in the regex dynamically;
