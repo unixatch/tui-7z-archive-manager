@@ -184,6 +184,9 @@ const help = () => {
     ${green}--help${normal}, ${green}/help${normal}, ${green}-h${normal}, ${green}/h${normal}, ${green}/?${normal}:
       ${dimGray+italics}Shows this help message${normal}
     
+    ${green}--help-shortcuts${normal}, ${green}/help-shortcuts${normal}, ${green}-hs${normal}, ${green}/hs${normal}:
+      ${dimGray+italics}Shows the available shortcuts${normal}
+    
     ${green}--version${normal}, ${green}/version${normal}, ${green}-v${normal}, ${green}/v${normal}:
       ${dimGray+italics}Shows the installed version${normal}
   `
