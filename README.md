@@ -27,9 +27,12 @@ npm install -g tui-7z-archive-manager
 that is:
 
 - **On Windows**:
-Put your 7z.exe's folder path inside _%path%_ variable and if that isn't enough try putting it inside the system's _%path%_ one. You can view and modify variables by going `Control Panel > User Accounts > Change my environment variables`;
+Put your 7z.exe's folder path inside _%path%_ variable and if that isn't enough try putting it inside the system's _%path%_ one. You can view and modify variables by going `Control Panel > User Accounts > Change my environment variables` or you can do it through the commandline (CMD) in 2 ways like:
+  1. **_user only_**: `setx PATH "%PATH%;_your_7z_folder_"`;
+  2. **_system wide_**: `setx /m PATH "%PATH%;_your_7z_folder_"`;
 - **On Unix**:
-Just install it with a package manager (or App Store/Software Manager) and it should be already available globally, if that's not enough go find the _7z_ binary file path and add it to the **$PATH** variable permanently;
+Just install it with a package manager (or App Store/Software Manager) and it should be already available globally, if that's not enough go find the _7z_ binary file path and add it to the **$PATH** variable permanently like:
+  - `echo "export PATH=\"$PATH:_your_7z_folder_\"" >> ~/.bashrc`;
 
 ## How to use it?
 
@@ -50,14 +53,18 @@ Pressing enter will show all the available commands
 - `d` → delete command;
 - `c` → move command;
 - `a` → add command;
-- `Ctrl + a` → skips to the selector for adding 📂/📄s;
-- `Meta (alt key) + a` → skips to the file creation;
-- `Shift + a` → skips to the folder creation;
+  - `Ctrl + a` → skips to the selector for adding 📂/📄s;
+  - `Meta (alt key) + a` → skips to the file creation;
+  - `Shift + a` → skips to the folder creation;
 - `e` → extract command;
-- `Ctrl + e` → skips to the "same place of archive" extraction;
-- `Shift + e` → skips to the "different location" extraction;
+  - `Ctrl + e` → skips to the "same place of archive" extraction;
+  - `Shift + e` → skips to the "different location" extraction;
 - `r` → rename command;
 - `n` → change archive command;
+- `Shift + n` → create an archive command;
+- `i` → information command;
+  - `Shift + i` → shows only information about the archive;
+- `h` → help command;
 
 ## Options
 
