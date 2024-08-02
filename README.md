@@ -68,7 +68,9 @@ Pressing enter will show all the available commands
 
 ## Options
 
-1. inquirerPagePrompsSize → the amount of things that prompts can show at once (e.g the list of the archive)
+1. **inquirerPagePrompsSize** → the amount of things that prompts can show at once (e.g the list of the archive) (_default: 20_);
+2. **skipToNewlyCreatedArchive** → goes directly to the newly created archive (_default: true_);
+3. **backToMenuAfterCreatedArchive** → goes back to the current archive and not the new one just created (_default: false_);
 
 ## Credits
 
