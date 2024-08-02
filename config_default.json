@@ -1,3 +1,5 @@
 {
-  "inquirerPagePromptsSize": 20
+  "inquirerPagePromptsSize": 20,
+  "skipToNewlyCreatedArchive": true,
+  "backToMenuAfterCreatedArchive": false
 }
