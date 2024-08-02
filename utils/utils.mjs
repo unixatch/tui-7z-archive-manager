@@ -54,49 +54,64 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
   if (typeof isCustomPrompt !== "boolean") throw new TypeError("Only true or false are permitted")
   
   const completeEvent = (_, key) => {
-    if (key.ctrl && key.name === "q") {
-      (isCustomPrompt) 
-        ? prompt.ui.close()
-        : prompt.cancel()
-      process.stdin.removeListener("keypress", completeEvent)
-      process.exit();
-    }
-    // file-selection
-    if (key.ctrl && key.name === "a") {
-      (isCustomPrompt) 
-        ? prompt.ui.close()
-        : prompt.cancel()
-      return global.command = "add_FileSelection";
-    }
-    // create-file
-    if (key.meta && key.name === "a") {
-      (isCustomPrompt) 
-        ? prompt.ui.close()
-        : prompt.cancel()
-      return global.command = "add_CreateFile";
-    }
-    // create-folder
-    if (key.shift && key.name === "a") {
-      (isCustomPrompt) 
-        ? prompt.ui.close()
-        : prompt.cancel()
-      return global.command = "add_CreateFolder";
-    }
-    // Extract in the same place as archive
-    if (key.ctrl && key.name === "e") {
-      (isCustomPrompt) 
-        ? prompt.ui.close()
-        : prompt.cancel()
-      return global.command = "extract_here";
-    }
-    // Extract elsewhere
-    if (key.shift && key.name === "e") {
-      (isCustomPrompt) 
-        ? prompt.ui.close()
-        : prompt.cancel()
-      return global.command = "extract_elsewhere";
-    }
-    switch (key.name) {
+    switch (key.sequence) {
+      // ctrl + q
+      case "\x11":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        process.stdin.removeListener("keypress", completeEvent)
+        process.exit();
+      // file-selection
+      // ctrl + a
+      case "\x01":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        return global.command = "add_FileSelection";
+      // create-file
+      // meta/alt + a
+      case "\x1Ba":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        return global.command = "add_CreateFile";
+      // create-folder
+      // shift + a
+      case "A":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        return global.command = "add_CreateFolder";
+      // Extract in the same place as archive
+      // ctrl + e
+      case "\x05":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        return global.command = "extract_here";
+      // Extract elsewhere
+      // shift + e
+      case "E":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        return global.command = "extract_elsewhere";
+      // Only archive info
+      // shift + i
+      case "I":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        return global.command = "info_on_archive";
+      // Create command
+      // shift + n
+      case "N":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        return global.command = "createCommand";
+      // ———————————————————————————————————————————
       case "d":
         (isCustomPrompt) 
           ? prompt.ui.close()
@@ -133,6 +148,18 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
           : prompt.cancel()
         global.command = "changeCommand";
         break;
+      case "i":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        global.command = "infoCommand";
+        break;
+      case "h":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        global.command = "helpCommand";
+        break;
     }
   }
   const quitPress = (_, key) => {
@@ -164,6 +191,22 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
       global.command = "backToMainMenu";
     }
   }
+  const infoNavigation = (_, key) => {
+    switch (key.name) {
+      case "w":
+      case "up":
+      case "pageup":
+        global.infoNavDirection = "upward";
+        break;
+      case "s":
+      case "down":
+      case "pagedown":
+        global.infoNavDirection = "downward";
+        break;
+    }
+    prompt.ui.activePrompt.close()
+    process.stdin.removeListener("keypress", infoNavigation)
+  }
   
   switch (request) {
     case "quitOnly":
@@ -171,6 +214,9 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
       break;
     case "quitPlusEsc":
       process.stdin.on('keypress', quitPress_plusEsc)
+      break;
+    case "infoNavigation":
+      process.stdin.on('keypress', infoNavigation)
       break;
     case "complete":
       process.stdin.on('keypress', completeEvent)
@@ -200,14 +246,58 @@ const clearLastLines = lines => {
   process.stdout
     .clearScreenDown();
 }
+async function getAmountOfLinesToClean(string) {
+  if (string === undefined) {
+    return new Error("A string is required")
+  }
+  if (typeof string !== "string") {
+    return new TypeError("Only a string can be passed")
+  }
+  
+  async function recursiveSearch(lineLength, lineCount, numberForMultiple) {
+    // Above limit but below the limit's multiple
+    // Finish the search then
+    if (lineLength > lineLimit
+       && lineLength < lineLimit * numberForMultiple) {
+      return lineCount;
+    }
+    // Above limit AND above the limit's multiple
+    // Search more then
+    if (lineLength > lineLimit
+       && lineLength > lineLimit * numberForMultiple) {
+      return recursiveSearch(line, lineCount+1, numberForMultiple+1);
+    }
+  }
+  
+  const lineLimit = process.stdout.columns;
+  let lineCount = 0;
+  const arrayOfLines = (string.includes("\n")) ? string.split("\n") : [string];
+  
+  for (let line of arrayOfLines) {
+    // Removes any kind of escape sequences so that it's clean for the search
+    if (line.includes("\x1B")) {
+      line = line.replace(/\x1B\[(?:\d;?)*m/g, "");
+    }
+    if (line.length > lineLimit) {
+      if (lineCount === 0) lineCount += 1;
+      const remainingLines = await recursiveSearch(line.length, lineCount, 2);
+      
+      lineCount += remainingLines;
+    } else lineCount += 1;
+  }
+  return lineCount;
+}
 
-function getStringList(archiveFilePath) {
+function getStringList(archiveFilePath, specificItems = [""]) {
   if (archiveFilePath === undefined) {
     return new Error("A file path is required")
   }
+  if (!specificItems instanceof Array) {
+    return new TypeError("Only arrays can be passed")
+  }
   return new Promise((resolve, reject) => {
     let dataStdout, dataStderr;
-    const stream = spawn("7z", ["l", "-slt", archiveFilePath], { windowsHide: true });
+    const stream = spawn("7z", ["l", "-slt", archiveFilePath, ...specificItems], { windowsHide: true });
     
     // When goes good
     stream.stdout.on("data", data => {
@@ -332,5 +422,6 @@ export {
   TreePrompt,
   inquirerFileTreeSelection,
   PressToContinuePrompt,
-  execute7zCommand
+  execute7zCommand,
+  getAmountOfLinesToClean
 }
