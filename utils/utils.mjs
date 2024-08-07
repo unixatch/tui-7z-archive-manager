@@ -154,6 +154,12 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
           : prompt.cancel()
         global.command = "infoCommand";
         break;
+      case "o":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        global.command = "openCommand";
+        break;
       case "h":
         (isCustomPrompt) 
           ? prompt.ui.close()
@@ -192,15 +198,32 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
     }
   }
   const infoNavigation = (_, key) => {
-    switch (key.name) {
+    switch (key.sequence) {
+      // Pageup
+      case "\x1B[5~":
+        global.infoNavDirection = "upwardPU";
+        break;
+      // Pagedown
+      case "\x1B[6~":
+        global.infoNavDirection = "downwardPD";
+        break;
+      // Ctrl + arrow up
+      case "\x1B[1;5A":
+        global.infoNavDirection = "firstInList";
+        break;
+      // Ctrl + arrow down
+      case "\x1B[1;5B":
+        global.infoNavDirection = "lastInList";
+        break;
+      // ———————————————————————————————————————————
       case "w":
-      case "up":
-      case "pageup":
+      // Arrow up
+      case "\x1B[A":
         global.infoNavDirection = "upward";
         break;
       case "s":
-      case "down":
-      case "pagedown":
+      // Arrow down
+      case "\x1B[B":
         global.infoNavDirection = "downward";
         break;
     }
@@ -254,18 +277,19 @@ async function getAmountOfLinesToClean(string) {
     return new TypeError("Only a string can be passed")
   }
   
-  async function recursiveSearch(lineLength, lineCount, numberForMultiple) {
+  async function recursiveSearch(lineLength, lineCount = 1, numberForMultiple = 2) {
+    if (!Number.isInteger(lineLength)) {
+      throw new TypeError("The line length must be an integer")
+    }
     // Above limit but below the limit's multiple
     // Finish the search then
-    if (lineLength > lineLimit
-       && lineLength < lineLimit * numberForMultiple) {
-      return lineCount;
+    if (lineLength < (lineLimit * numberForMultiple)) {
+      return lineCount+1;
     }
     // Above limit AND above the limit's multiple
     // Search more then
-    if (lineLength > lineLimit
-       && lineLength > lineLimit * numberForMultiple) {
-      return recursiveSearch(line, lineCount+1, numberForMultiple+1);
+    if (lineLength > (lineLimit * numberForMultiple)) {
+      return recursiveSearch(lineLength, lineCount+1, numberForMultiple+1);
     }
   }
   
@@ -279,8 +303,7 @@ async function getAmountOfLinesToClean(string) {
       line = line.replace(/\x1B\[(?:\d;?)*m/g, "");
     }
     if (line.length > lineLimit) {
-      if (lineCount === 0) lineCount += 1;
-      const remainingLines = await recursiveSearch(line.length, lineCount, 2);
+      const remainingLines = await recursiveSearch(line.length);
       
       lineCount += remainingLines;
     } else lineCount += 1;
