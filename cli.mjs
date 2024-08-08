@@ -211,6 +211,7 @@ const helpShortcuts = () => {
     ${bold+underline}Shift + n${normal} —→ ${dimGray}create an archive command${normal}
     ${bold+underline}i${normal} —→ ${dimGray}information command${normal}
       ${bold+underline}Shift + i${normal} —→ ${dimGray}shows only information about the archive\n${normal}
+    ${bold+underline}o${normal} —→ ${dimGray}open command${normal}
     ${bold+underline}h${normal} —→ ${dimGray}help command, that is this prompt${normal}
   `
   console.log(helpText)

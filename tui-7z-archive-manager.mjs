@@ -17,9 +17,9 @@
 */
 
 // Detects if 7zip is installed correctly
+const { spawnSync } = await import("child_process");
 try {
-  const { execSync } = await import("child_process");
-  execSync("7z")
+  spawnSync("7z")
 } catch (e) {
   console.log("\x1b[31;1m"+"7zip is not installed or it's not visible globally"+"\x1b[0m");
   process.exit()
@@ -548,6 +548,11 @@ async function mainMenu(refresh, archiveFilePassed) {
         if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
         mainMenu(true, newlyCreatedArchive)
         return;
+      case "openCommand":
+        await openCommand(list, archiveFile)
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+        mainMenu(true, archiveFile)
+        return;
       case "helpCommand":
         await helpCommand()
         mainMenu(false, archiveFile)
@@ -576,6 +581,11 @@ async function mainMenu(refresh, archiveFilePassed) {
             name: "Creation command",
             value: "create-command",
             description: "Create an entirely new archive"
+          },
+          {
+            name: "Open command",
+            value: "open-command",
+            description: "Opens the selected 📄/📂 inside the archive"
           },
           {
             name: "Add command",
@@ -641,6 +651,11 @@ async function mainMenu(refresh, archiveFilePassed) {
             if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, newlyCreatedArchive)
             return;
+          case 'open-command':
+            await openCommand(list, archiveFile)
+            if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+            mainMenu(true, archiveFile)
+            break;
           case 'add-command':
             await addCommand(list, archiveFile)
             if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
@@ -979,7 +994,7 @@ async function addCommand(list, archiveFile, skipToSection) {
     clearLastLines([0, (skipToSection) ? -2 : -3])
     const waitingMessage = new waitingMessagePrompt(gray+"Adding the new 📄, might take a while..."+normal+"\n")
     // Creation part
-    let dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
+    let dedicatedTmpDir = resolve(tmpdir(), "7z-archive-manager");
     if (dirname(filename) !== ".") {
       mkdirSync(
         resolve(dedicatedTmpDir, dirname(filename)), 
@@ -1044,7 +1059,7 @@ async function addCommand(list, archiveFile, skipToSection) {
     
     clearLastLines([0, (skipToSection) ? -1 : -2])
     const waitingMessage = new waitingMessagePrompt(gray+"Adding the new 📂, might take a while..."+normal+"\n")
-    const dedicatedTmpDir = resolve(tmpdir(), "7z-cleaner");
+    const dedicatedTmpDir = resolve(tmpdir(), "7z-archive-manager");
     mkdirSync(
       resolve(dedicatedTmpDir, answer), 
       { recursive: true }
@@ -1395,7 +1410,7 @@ async function infoCommand(list, archiveFile, infoOnArchive = false) {
     if (!Number.isInteger(itemNumber)) {
       throw new TypeError("itemNumber must be an integer")
     }
-    console.log("\n"+itemsList[itemNumber]);
+    console.log("\n"+`${dimGray}--- ${normal+gray}[${normal+(itemNumber+1)+gray}/${normal+itemsList.length+gray}] ${dimGray}---${normal}\n`+itemsList[itemNumber]);
     const navPrompt = await promptWithKeyPress("infoNavigation", () => {
       return inquirer.prompt({
         name: "key",
@@ -1408,11 +1423,13 @@ async function infoCommand(list, archiveFile, infoOnArchive = false) {
       })
     });
     clearLastLines([
-      0, (await getAmountOfLinesToClean(itemsList[itemNumber])+2)*-1
+      0, (await getAmountOfLinesToClean(itemsList[itemNumber])+3)*-1
     ])
     addRemove_Keypress("close")
     // Controls part
     if (navPrompt?.key?.value === "q") return;
+    if (global.infoNavDirection === "firstInList") return infoNavigation(itemsList, 0);
+    if (global.infoNavDirection === "lastInList") return infoNavigation(itemsList, itemsList.length-1);
     if (global.infoNavDirection === "upward") {
       // Loops downwards from 1st item
       if (itemNumber === 0) return infoNavigation(itemsList, itemsList.length-1);
@@ -1422,6 +1439,34 @@ async function infoCommand(list, archiveFile, infoOnArchive = false) {
       // Loops upwards from last item
       if (itemNumber === itemsList.length-1) return infoNavigation(itemsList, 0);
       return infoNavigation(itemsList, itemNumber+1);
+    }
+    if (global.infoNavDirection === "upwardPU") {
+      // Loops downwards from 1st item
+      if (itemsList.length <= 3) {
+        if (itemNumber === 0) return infoNavigation(itemsList, itemsList.length-1);
+        return infoNavigation(itemsList, itemNumber-1);
+      }
+      if ((itemNumber-3) < 0) {
+        return infoNavigation(
+          itemsList,
+          (itemsList.length-1)-((itemNumber-3)*-1)
+        );
+      }
+      return infoNavigation(itemsList, itemNumber-3);
+    }
+    if (global.infoNavDirection === "downwardPD") {
+      // Loops upwards from last item
+      if (itemsList.length <= 3) {
+        if (itemNumber === itemsList.length-1) return infoNavigation(itemsList, 0);
+        return infoNavigation(itemsList, itemNumber+1);
+      }
+      if ((itemNumber+3) > itemsList.length-1) {
+        return infoNavigation(
+          itemsList,
+          0+((itemNumber+3)-(itemsList.length-1))
+        );
+      }
+      return infoNavigation(itemsList, itemNumber+3);
     }
   }
   
@@ -1549,6 +1594,97 @@ async function createCommand() {
     }
   }
 }
+async function openCommand(list, archiveFile) {
+  if (archiveFile === undefined) {
+    throw new Error("The archive file path is required");
+  }
+  addRemove_Keypress("close");
+  delete global.command;
+  
+  if (list.selected.length < 1) {
+    await inquirer.prompt({
+      name: "key",
+      type: "press-to-continue",
+      anyKey: true,
+      pressToContinueMessage: normalYellow+"Nothing was selected, cannot open anything\n"+normal
+    })
+    return clearLastLines([0, -1]);
+  }
+  // Directory detection
+  const regexSlash = new RegExp(`${typeOfSlash}$`, "m");
+  for (const selected of list.selected) {
+    const isDir = (selected.match(regexSlash)) ? true : false;
+    
+    if (isDir) {
+      const msg = `${normalYellow}"${selected}" is a directory, thus it doesn't make sense to open\n${normal}`;
+      await inquirer.prompt({
+        name: "key",
+        type: "press-to-continue",
+        anyKey: true,
+        pressToContinueMessage: msg
+      })
+      return clearLastLines([
+        0, 
+        (await getAmountOfLinesToClean(msg)-1)*-1
+      ]);
+    }
+  }
+  const commandToUse = (() => {
+    switch (platform) {
+      case "win64":
+      case "win32": return 'start';
+      
+      case "darwin": return "open";
+      case "linux": return "xdg-open";
+      case "android": return "termux-open";
+    }
+  })();
+  const dedicatedTmpDir = resolve(tmpdir(), "7z-archive-manager");
+  const tmpArchiveDirectory = resolve(
+    dedicatedTmpDir, 
+    parse(archiveFile.selected).name+"_"+extname(archiveFile.selected).slice(1)
+  );
+  // Creates a directory with the same name of the archive inside the manager's temp directory
+  // Only if it doesn't exist already
+  if (!existsSync(tmpArchiveDirectory)) {
+    mkdirSync(tmpArchiveDirectory, { recursive: true })
+  }
+  const arrayOfFiles = [];
+  for (const selected of list.selected) {
+    // Extract only if not done at least once
+    if (!existsSync(resolve(tmpArchiveDirectory, selected))) {
+      const waitingMessage = new waitingMessagePrompt(gray+"Extracting the selected 📄/📂, might take a while..."+normal+"\n");
+      await execute7zCommand([
+        "x",
+        archiveFile.selected,
+        selected,
+        "-o"+tmpArchiveDirectory
+      ])
+      await waitingMessage.close()
+      clearLastLines([0, -1])
+    }
+    if (platform === "darwin") arrayOfFiles.push(resolve(tmpArchiveDirectory, selected))
+  }
+  if (platform === "android"
+     || platform === "linux"
+     || platform === "win32") {
+    const isWin = (platform === "win32") ? true : false;
+    return list.selected.forEach((selected) => {
+      if (isWin) {
+        return spawnSync(
+          commandToUse,
+          ["", resolve(tmpArchiveDirectory, selected)]
+        );
+      }
+      return spawnSync(
+        commandToUse,
+        [resolve(tmpArchiveDirectory, selected)]
+      );
+    });
+  }
+  // Opens the temp file/s
+  return spawnSync(commandToUse, arrayOfFiles);
+}
 async function helpCommand() {
   addRemove_Keypress("close");
   delete global.command;
@@ -1568,7 +1704,14 @@ async function helpCommand() {
     `  ${bold+underline}Shift + n${normal} —→ ${dimGray}create an archive command${normal}`,
     `  ${bold+underline}i${normal} —→ ${dimGray}information command${normal}`,
     `    ${bold+underline}Shift + i${normal} —→ ${dimGray}shows only information about the archive${normal}\n`,
-    `  ${bold+underline}h${normal} —→ ${dimGray}help command, that is this prompt${normal}`
+    `  ${bold+underline}o${normal} —→ ${dimGray}open command${normal}`,
+    `  ${bold+underline}h${normal} —→ ${dimGray}help command, that is this prompt${normal}`,
+    "",
+    `  ${dimGrayBold}When using the info command:${normal}\n`,
+    `    ${bold+underline}Ctrl + arrow up${normal} —→ ${dimGray}Goes to the first item in the list${normal}`,
+    `    ${bold+underline}Ctrl + arrow down${normal} —→ ${dimGray}Goes to the last item in the list${normal}`,
+    `    ${bold+underline}Page up${normal} —→ ${dimGray}Goes 3 items forwards normally but if the amount of items is less or equal to 3, it's like using w or up arrow${normal}`,
+    `    ${bold+underline}Page down${normal} —→ ${dimGray}Goes 3 items backwards normally but if the amount of items is less or equal to 3, it's like using s or down arrow${normal}`
   ]
   const stringToClean =
     `\n${underline}7zTuiManager${normal}\n  ${dimGrayBold}A tui manager for organising archives${normal}\n\n` +
@@ -1578,7 +1721,7 @@ async function helpCommand() {
   await inquirer.prompt({
     name: "key",
     type: "press-to-continue",
-    pressToContinueMessage: "Press enter to continue...\n",
+    pressToContinueMessage: "Press enter to go back to main menu...\n",
     enter: true
   })
   return clearLastLines([
