@@ -16,11 +16,25 @@
 */
 
 import { readFileSync } from "fs"
+import { platform } from "process"
 import { spawn } from "child_process"
 import oldTreePrompt from "@willowmt/inquirer-tree-prompt"
+import chalk from 'chalk'
+import figures from 'figures'
+import { fromEvent } from 'rxjs'
+import { 
+  filter, 
+  share, 
+  map, 
+  takeUntil 
+} from 'rxjs/operators/index.js'
+import observe from 'inquirer/lib/utils/events.js'
+
+
 import oldInquirerFileTreeSelection from "inquirer-file-tree-selection-prompt"
 import oldPressToContinuePrompt from "inquirer-press-to-continue"
 
+const typeOfSlash = (platform === "win32") ? "\\" : "/";
 function declareColors() {
   // Custom formatting
   global.normal= "\x1b[0m"
@@ -111,6 +125,14 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
           ? prompt.ui.close()
           : prompt.cancel()
         return global.command = "createCommand";
+      // Search command
+      // ctrl + f
+      case "\x06":
+        process.stdin.removeListener("keypress", completeEvent)
+        global.searchMode = true;
+        process.stdin.on('keypress', searchMode)
+        prompt.ui.activePrompt.render()
+        break;
       // ———————————————————————————————————————————
       case "d":
         (isCustomPrompt) 
@@ -229,6 +251,19 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
     }
     prompt.ui.activePrompt.close()
     process.stdin.removeListener("keypress", infoNavigation)
+  }
+  const searchMode = (_, key) => {
+    if (key.ctrl && key.name === "q") {
+      prompt.ui.close()
+      process.stdin.removeListener('keypress', searchMode)
+      process.exit()
+    }
+    if (key.name === "escape") {
+      process.stdin.removeListener('keypress', searchMode)
+      global.searchMode = false;
+      prompt.ui.activePrompt.render()
+      process.stdin.on('keypress', completeEvent)
+    }
   }
   
   switch (request) {
@@ -390,20 +425,234 @@ function promptWithKeyPress(typeOfKeyEvent, promptFunc, isCustomPrompt = true) {
 class TreePrompt extends oldTreePrompt {
   constructor(questions, rl, answers) {
 		super(questions, rl, answers);
-		this.value = ""
+		this.value = "";
   }
   valueFor(node) {
 		return typeof node?.value !== 'undefined' ? node?.value : node?.name;
 	}
-	render(error) {
-	  // Getting rid of the blue answers
+  _installKeyHandlers() {
+		const events = observe(this.rl);
+
+		const validation = this.handleSubmitEvents(
+				events.line.pipe(map(() => this.valueFor(
+				this.opt.multiple ? this.selectedList[0] : this.active))));
+		validation.success.forEach(this.onSubmit.bind(this))
+		validation.error.forEach(this.onError.bind(this))
+
+    // Up arrow
+		events.normalizedUpKey
+		.pipe(takeUntil(validation.success))
+		.forEach(this.onUpKey.bind(this))
+
+    // Down arrow
+		events.normalizedDownKey
+		.pipe(takeUntil(validation.success))
+		.forEach(this.onDownKey.bind(this))
+
+    // Right arrow
+		events.keypress.pipe(
+			filter(({ key }) => key.name === 'right'),
+			share()
+		)
+		.pipe(takeUntil(validation.success))
+		.forEach(this.onRightKey.bind(this))
+
+    // Left arrow
+		events.keypress.pipe(
+			filter(({ key }) => key.name === 'left'),
+			share()
+		)
+		.pipe(takeUntil(validation.success))
+		.forEach(this.onLeftKey.bind(this))
+		
+    // Any key presses
+    events.keypress
+    .pipe(
+      filter(({ key }) => {
+        return key.name !== 'left' && key.name !== 'right'
+      }),
+			share()
+    )
+    .pipe(takeUntil(validation.success))
+    .forEach(this.onKeypress.bind(this))
+
+    // Space key
+		events.spaceKey
+		.pipe(takeUntil(validation.success))
+		.forEach(this.onSpaceKey.bind(this))
+
+    // Tab key
+		function normalizeKeypressEvents(value, key) {
+			return { value: value, key: key || {} };
+		}
+		fromEvent(this.rl.input, 'keypress', normalizeKeypressEvents)
+		.pipe(filter(({ key }) => key && key.name === 'tab'), share())
+		.pipe(takeUntil(validation.success))
+		.forEach(this.onTabKey.bind(this))
+	}
+
+  render(error) {
+    // Getting rid of the blue answers
 	  // for cleaning purposes only if answered
     if (this.status === 'answered') {
       let message = this.getQuestion();
       return this.screen.render(message);
     }
-    super.render(error);
-  }
+		let message = (global.searchMode) 
+		  ? this.getQuestion()+this.rl.line
+		  : this.getQuestion();
+
+		if (this.firstRender) {
+			let hint = "Use arrow keys,";
+			if (this.opt.multiple) {
+				hint += " space to select,";
+			}
+			hint += " enter to confirm.";
+			message += chalk.dim(`(${hint})`);
+		}
+
+		if (this.status === 'answered') {
+			let answer;
+			if (this.opt.multiple) {
+				answer = this.selectedList.map((item) => this.shortFor(item, true)).join(', ');
+			} else {
+				answer = this.shortFor(this.active, true);
+			}
+			message += chalk.cyan(answer);
+		} else {
+			this.shownList = [];
+			let treeContent = this.createTreeContent();
+			if (this.opt.loop !== false) {
+				treeContent += '----------------';
+			}
+			message += '\n' + this.paginator.paginate(treeContent,
+					this.shownList.indexOf(this.active), this.opt.pageSize);
+		}
+
+		let bottomContent;
+
+		if (error) {
+			bottomContent = '\n' + chalk.red('>> ') + error;
+		}
+		this.firstRender = false;
+		this.screen.render(message, bottomContent);
+	}
+	printTree(node, family, output = "", indent) {
+	  if (!(node instanceof Object)) {
+	    throw new TypeError("A node must be provided")
+	  }
+	  if (!(family instanceof Array)) {
+	    throw new TypeError("The family list must be an array")
+	  }
+	  if (!Number.isInteger(indent)) {
+	    throw new TypeError("Indent must be an integer")
+	  }
+	  const isFinal = this.status === 'answered';
+	  
+	  this.shownList.push(node)
+		if (!this.active) {
+			this.active = node;
+		}
+		let prefix = node.children
+			? node.open
+				? figures.arrowDown + ' '
+				: figures.arrowRight + ' '
+			: node === this.active
+				? figures.pointer + ' '
+				: '  '
+
+		if (this.opt.multiple) {
+			prefix += this.selectedList.includes(node) ? figures.radioOn : figures.radioOff;
+			prefix += ' ';
+		}
+		const showValue = ' '.repeat(indent) + prefix + this.nameFor(node, isFinal) + '\n';
+
+		if (node === this.active) {
+			if (node.isValid === true) {
+				output += chalk.cyan(showValue)
+			} else {
+				output += chalk.red(showValue)
+			}
+		}
+		else {
+			output += showValue
+		}
+		// if (global.searchMode) {
+// 		  const indexOfParent = family.indexOf(node.name);
+// 		  if (indexOfParent > -1 && node?.children !== null) {
+// 		    indent += 2;
+// 		  }
+// 	  }
+		return output;
+	}
+	createTreeContent(node = this.tree, indent = 2, family = []) {
+	  const thisClass = this;
+		const children = node.children || [];
+		let output = '';
+
+    let searchRegex;
+    if (global.searchMode && this.rl.line.length > 0) {
+      searchRegex = new RegExp(`${escapeRegExp(this.rl.line)}`, "i");
+    }
+		children.forEach(async child => {
+		  if (global.searchMode && this.rl.line.length > 0) {
+		    if (!child.name.match(searchRegex)) {
+          if (child?.children !== null && child.open) {
+            // Per quando devo mettere l'opzione di recursività ↓
+            if (typeof child?.children === "function") {
+              await this.prepareChildren(child)
+            }
+            family.push(child.name+typeOfSlash)
+            output += this.createTreeContent(child, indent, family);
+          }
+          return;
+		    } else if (family.indexOf(child?.parent.name+typeOfSlash) >= 0) {
+		      if (!new RegExp(`(◯|◉) ${child?.parent.name}`).test(output)) {
+	          function searchUp(current, objs, surface = false) {
+		          if (Object.keys(current.parent).length < 3) surface = true;
+	            const decrescent = (surface) ? objs.reverse() : objs;
+	            
+  		        for (const folder of decrescent) {
+  		          if (surface) {
+      		        output += thisClass.printTree(folder, family, "", indent);
+      		        indent += 2;
+      		        continue;
+  		          }
+  		          if (Object.hasOwn(current.parent, "name")) {
+  	              objs.push(current.parent)
+  	              return searchUp(current.parent, objs);
+  		          }
+  		        }
+	          }
+	          searchUp(child.parent, [child.parent])
+		      }
+		      family.push(child.name)
+		    }
+      }
+			output += this.printTree(child, family, "", indent);
+
+			if (child.open && !this.rl.line.length > 0) {
+				output += this.createTreeContent(child, indent + 2)
+			}
+		})
+		return output
+	}
+	onRightKey() {
+	  if (this.shownList.length === 0) return;
+	  super.onRightKey()
+	}
+	onLeftKey() {
+	  if (this.shownList.length === 0) return;
+	  super.onLeftKey()
+	}
+	onKeypress() {
+	  if (global.searchMode) this.render();
+	}
+	onSpaceKey() {
+	  // Doesn't select unshown 📄/📂s
+	  if (!this.shownList.includes(this.active)) return;
+	  super.onSpaceKey()
+	}
   close() {
     this.onSubmit(this);
   }
