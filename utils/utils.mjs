@@ -21,7 +21,7 @@ import { spawn } from "child_process"
 import oldTreePrompt from "@willowmt/inquirer-tree-prompt"
 import chalk from 'chalk'
 import figures from 'figures'
-import { fromEvent } from 'rxjs'
+import { fromEvent, Subject } from 'rxjs'
 import { 
   filter, 
   share, 
@@ -426,6 +426,8 @@ class TreePrompt extends oldTreePrompt {
   constructor(questions, rl, answers) {
 		super(questions, rl, answers);
 		this.value = "";
+		this.memoryShownList = [];
+		this.treePromptResult = new Subject();
   }
   valueFor(node) {
 		return typeof node?.value !== 'undefined' ? node?.value : node?.name;
@@ -433,9 +435,16 @@ class TreePrompt extends oldTreePrompt {
   _installKeyHandlers() {
 		const events = observe(this.rl);
 
-		const validation = this.handleSubmitEvents(
-				events.line.pipe(map(() => this.valueFor(
-				this.opt.multiple ? this.selectedList[0] : this.active))));
+    // It'll end the prompt only when outside searchMode
+    events.line
+      .pipe(
+        map(() => this.valueFor(
+			    this.opt.multiple ? this.selectedList[0] : this.active
+			  ))
+		  )
+      .forEach(this.onLine.bind(this))
+    // Triggers when searchMode isn't active
+		const validation = this.handleSubmitEvents(this.treePromptResult);
 		validation.success.forEach(this.onSubmit.bind(this))
 		validation.error.forEach(this.onError.bind(this))
 
@@ -469,13 +478,18 @@ class TreePrompt extends oldTreePrompt {
     events.keypress
     .pipe(
       filter(({ key }) => {
-        return key.name !== 'left' && key.name !== 'right'
+        // Prevents double renders when unneeded
+        return key.name !== 'left' 
+          && key.name !== 'right'
+          && key.name !== 'up'
+          && key.name !== 'down'
+          && (key && key.name !== 'tab')
       }),
 			share()
     )
     .pipe(takeUntil(validation.success))
     .forEach(this.onKeypress.bind(this))
-
+    
     // Space key
 		events.spaceKey
 		.pipe(takeUntil(validation.success))
@@ -537,12 +551,9 @@ class TreePrompt extends oldTreePrompt {
 		this.firstRender = false;
 		this.screen.render(message, bottomContent);
 	}
-	printTree(node, family, output = "", indent) {
+	printTree(node, output = "", indent) {
 	  if (!(node instanceof Object)) {
 	    throw new TypeError("A node must be provided")
-	  }
-	  if (!(family instanceof Array)) {
-	    throw new TypeError("The family list must be an array")
 	  }
 	  if (!Number.isInteger(indent)) {
 	    throw new TypeError("Indent must be an integer")
@@ -550,6 +561,7 @@ class TreePrompt extends oldTreePrompt {
 	  const isFinal = this.status === 'answered';
 	  
 	  this.shownList.push(node)
+	  this.memoryShownList.push(node.value)
 		if (!this.active) {
 			this.active = node;
 		}
@@ -577,44 +589,42 @@ class TreePrompt extends oldTreePrompt {
 		else {
 			output += showValue
 		}
-		// if (global.searchMode) {
-// 		  const indexOfParent = family.indexOf(node.name);
-// 		  if (indexOfParent > -1 && node?.children !== null) {
-// 		    indent += 2;
-// 		  }
-// 	  }
 		return output;
 	}
-	createTreeContent(node = this.tree, indent = 2, family = []) {
+	createTreeContent(node = this.tree, indent = 2) {
 	  const thisClass = this;
 		const children = node.children || [];
 		let output = '';
 
-    let searchRegex;
+    let searchRegex, memoryIndent;
     if (global.searchMode && this.rl.line.length > 0) {
-      searchRegex = new RegExp(`${escapeRegExp(this.rl.line)}`, "i");
+      searchRegex = new RegExp(`${escapeRegExp(this.rl.line)}`, "ig");
     }
 		children.forEach(async child => {
 		  if (global.searchMode && this.rl.line.length > 0) {
 		    if (!child.name.match(searchRegex)) {
-          if (child?.children !== null && child.open) {
+          if (child?.children !== null && child.open
+              || this.memoryShownList.indexOf(child.value)) {
             // Per quando devo mettere l'opzione di recursività ↓
             if (typeof child?.children === "function") {
               await this.prepareChildren(child)
             }
-            family.push(child.name+typeOfSlash)
-            output += this.createTreeContent(child, indent, family);
+            output += this.createTreeContent(child, indent);
+            // Magari ottenere un array che dice se ha trovato qualcosa dentro o meno?
+            // e far si che ritorna se trova nulla o è un file? 
           }
           return;
-		    } else if (family.indexOf(child?.parent.name+typeOfSlash) >= 0) {
-		      if (!new RegExp(`(◯|◉) ${child?.parent.name}`).test(output)) {
+		    } else {
+		      if (child.children !== null && child.open) return output += this.createTreeContent(child, indent);
+		      if (!this.shownList.reverse()
+                .find(o => o.value === child.parent?.value)) {
 	          function searchUp(current, objs, surface = false) {
 		          if (Object.keys(current.parent).length < 3) surface = true;
 	            const decrescent = (surface) ? objs.reverse() : objs;
 	            
   		        for (const folder of decrescent) {
   		          if (surface) {
-      		        output += thisClass.printTree(folder, family, "", indent);
+      		        output += thisClass.printTree(folder, "", indent);
       		        indent += 2;
       		        continue;
   		          }
@@ -624,14 +634,36 @@ class TreePrompt extends oldTreePrompt {
   		          }
   		        }
 	          }
-	          searchUp(child.parent, [child.parent])
+	          if (Object.keys(child.parent).length > 2) {
+  	          searchUp(child.parent, [child.parent])
+	          }
+		      } else {
+		        function searchUp(current, objs, surface = false) {
+		          if (memoryIndent?.value === current?.value) return;
+		          if (Object.keys(current.parent).length < 3) surface = true;
+	            const decrescent = (surface) ? objs.reverse() : objs;
+	            
+  		        for (const folder of decrescent) {
+  		          if (surface) {
+      		        indent += 2;
+      		        continue;
+  		          }
+  		          if (Object.hasOwn(current.parent, "name")) {
+  	              objs.push(current.parent)
+  	              return searchUp(current.parent, objs);
+  		          }
+  		        }
+	          }
+	          if (Object.keys(child.parent).length > 2) {
+  	          searchUp(child.parent, [child.parent])
+  	          memoryIndent = child.parent;
+	          }
 		      }
-		      family.push(child.name)
 		    }
       }
-			output += this.printTree(child, family, "", indent);
+			output += this.printTree(child, "", indent);
 
-			if (child.open && !this.rl.line.length > 0) {
+			if (child.open) {
 				output += this.createTreeContent(child, indent + 2)
 			}
 		})
@@ -652,6 +684,13 @@ class TreePrompt extends oldTreePrompt {
 	  // Doesn't select unshown 📄/📂s
 	  if (!this.shownList.includes(this.active)) return;
 	  super.onSpaceKey()
+	}
+	onLine(result) {
+	  if (global.searchMode) {
+	    // Fare calcoli quando si preme invio
+	    return;
+	  }
+	  return this.treePromptResult.next(result)
 	}
   close() {
     this.onSubmit(this);
