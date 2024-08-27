@@ -130,6 +130,8 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
       case "\x06":
         process.stdin.removeListener("keypress", completeEvent)
         global.searchMode = true;
+        global.searching = true;
+        global.firstSearch = true;
         process.stdin.on('keypress', searchMode)
         prompt.ui.activePrompt.render()
         break;
@@ -258,10 +260,8 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
       process.stdin.removeListener('keypress', searchMode)
       process.exit()
     }
-    if (key.name === "escape") {
-      process.stdin.removeListener('keypress', searchMode)
-      global.searchMode = false;
-      prompt.ui.activePrompt.render()
+    if (key.name === "escape" || key.name === "return") {
+      process.stdin.removeListener('keypress', searchMode);
       process.stdin.on('keypress', completeEvent)
     }
   }
@@ -426,8 +426,15 @@ class TreePrompt extends oldTreePrompt {
   constructor(questions, rl, answers) {
 		super(questions, rl, answers);
 		this.value = "";
+		// Necessary
+		this.line = "";
+		this.searchTerm = "";
+		this.treeContentCache = "";
 		this.memoryShownList = [];
 		this.treePromptResult = new Subject();
+		
+		// Same as Node's REPL
+		this.rl.autoComplete = true;
   }
   valueFor(node) {
 		return typeof node?.value !== 'undefined' ? node?.value : node?.name;
@@ -479,16 +486,34 @@ class TreePrompt extends oldTreePrompt {
     .pipe(
       filter(({ key }) => {
         // Prevents double renders when unneeded
-        return key.name !== 'left' 
-          && key.name !== 'right'
-          && key.name !== 'up'
-          && key.name !== 'down'
-          && (key && key.name !== 'tab')
+        switch (key.name) {
+          case "left":
+          case "right":
+          case "up":
+          case "down":
+          case "escape":
+          case "tab":
+            return false;
+          
+          case "space":
+            return global.searching;
+          default:
+            return true;
+        }
       }),
 			share()
     )
     .pipe(takeUntil(validation.success))
     .forEach(this.onKeypress.bind(this))
+    
+    // Escape key
+    events.keypress
+    .pipe(
+      filter(({ key }) => key.name === "escape"),
+      share()
+    )
+    .pipe(takeUntil(validation.success))
+    .forEach(this.onEscape.bind(this))
     
     // Space key
 		events.spaceKey
@@ -512,9 +537,7 @@ class TreePrompt extends oldTreePrompt {
       let message = this.getQuestion();
       return this.screen.render(message);
     }
-		let message = (global.searchMode) 
-		  ? this.getQuestion()+this.rl.line
-		  : this.getQuestion();
+		let message = this.getQuestion();
 
 		if (this.firstRender) {
 			let hint = "Use arrow keys,";
@@ -535,9 +558,26 @@ class TreePrompt extends oldTreePrompt {
 			message += chalk.cyan(answer);
 		} else {
 			this.shownList = [];
-			let treeContent = this.createTreeContent();
+			let treeContent = (global.searching) 
+			  ? this.treeContentCache 
+			  : this.createTreeContent();
+			if (!global.searching) this.treeContentCache = treeContent;
 			if (this.opt.loop !== false) {
 				treeContent += '----------------';
+			}
+			if (global.searching || global.searchMode) {
+        if (global.firstSearch) {
+  			  // Shows cursor
+          process.stdout.write("\x1b[?25h")
+          this.rl.line = this.line;
+          this.rl.cursor = this.rl.line.length;
+          global.firstSearch = false;
+        }
+        if (!global.searching && !global.firstSearch) {
+          // Hides cursor
+          process.stdout.write("\x1b[?25l")
+        }
+			  treeContent += "\n ⭞ "+chalk.blueBright(this.line)+normal
 			}
 			message += '\n' + this.paginator.paginate(treeContent,
 					this.shownList.indexOf(this.active), this.opt.pageSize);
@@ -597,11 +637,11 @@ class TreePrompt extends oldTreePrompt {
 		let output = '';
 
     let searchRegex, memoryIndent;
-    if (global.searchMode && this.rl.line.length > 0) {
-      searchRegex = new RegExp(`${escapeRegExp(this.rl.line)}`, "ig");
+    if (global.searchMode && this.searchTerm.length > 0) {
+      searchRegex = new RegExp(`${escapeRegExp(this.searchTerm)}`, "ig");
     }
 		children.forEach(async child => {
-		  if (global.searchMode && this.rl.line.length > 0) {
+		  if (global.searchMode && this.searchTerm.length > 0) {
 		    if (!child.name.match(searchRegex)) {
           if (child?.children !== null && child.open
               || this.memoryShownList.indexOf(child.value)) {
@@ -669,28 +709,80 @@ class TreePrompt extends oldTreePrompt {
 		})
 		return output
 	}
+	onUpKey() {
+	  if (this.shownList.length === 0 || global.searching) {
+	    // For auto-complete
+	    this.line = this.rl.line;
+	    return this.render();
+	  }
+	  super.onUpKey()
+	}
+	onDownKey() {
+	  if (this.shownList.length === 0 || global.searching) {
+	    // For auto-complete
+	    this.line = this.rl.line;
+	    return this.render();
+	  }
+	  super.onDownKey()
+	}
 	onRightKey() {
+	  if (global.searching) return this.render();
 	  if (this.shownList.length === 0) return;
 	  super.onRightKey()
 	}
 	onLeftKey() {
+	  if (global.searching) return this.render();
 	  if (this.shownList.length === 0) return;
 	  super.onLeftKey()
 	}
 	onKeypress() {
-	  if (global.searchMode) this.render();
+	  if (global.searching) {
+	    this.line = this.rl.line;
+	    this.render();
+	  }
 	}
 	onSpaceKey() {
+	  if (!global.searchMode) this.rl.line = "";
 	  // Doesn't select unshown 📄/📂s
-	  if (!this.shownList.includes(this.active)) return;
+	  if (!this.shownList.includes(this.active) || global.searching) return;
 	  super.onSpaceKey()
 	}
-	onLine(result) {
-	  if (global.searchMode) {
-	    // Fare calcoli quando si preme invio
+	onTabKey() {
+	  if (this.shownList.length === 0 || global.searching) {
+	    // Gets rid of tab since it's not used in names
+	    this.rl.line = this.rl.line.slice(0, -1);
 	    return;
 	  }
+	  super.onTabKey()
+	}
+	onEscape() {
+	  // Hides cursor
+	  process.stdout.write("\x1b[?25l")
+	  this.line = "";
+	  this.searchTerm = "";
+	  global.searchMode = false;
+	  global.searching = false;
+	  this.render()
+	}
+	onLine(result) {
+	  if (global.searchMode && global.searching) {
+	    if (this.line.length < 1) {
+  	    // Hides cursor
+    	  process.stdout.write("\x1b[?25l")
+	      global.searchMode = false;
+	      global.searching = false;
+	    } else {
+	      this.searchTerm = this.line;
+	      global.searching = false;
+	    }
+	    return this.render();
+	  }
 	  return this.treePromptResult.next(result)
+	}
+	onSubmit() {
+	  global.searching = false;
+	  global.searchMode = false;
+	  super.onSubmit()
 	}
   close() {
     this.onSubmit(this);
