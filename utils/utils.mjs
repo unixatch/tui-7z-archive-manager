@@ -16,6 +16,7 @@
 */
 
 import { readFileSync } from "fs"
+import { sep } from "path"
 import { platform } from "process"
 import { spawn } from "child_process"
 import oldTreePrompt from "@willowmt/inquirer-tree-prompt"
@@ -430,6 +431,7 @@ class TreePrompt extends oldTreePrompt {
 		this.line = "";
 		this.searchTerm = "";
 		this.treeContentCache = "";
+		this.mapOfTree = (this.opt?.mapOfTree) ? this.opt.mapOfTree : false;
 		this.memoryShownList = [];
 		this.treePromptResult = new Subject();
 		
@@ -559,8 +561,11 @@ class TreePrompt extends oldTreePrompt {
 		} else {
 			this.shownList = [];
 			let treeContent = (global.searching) 
-			  ? this.treeContentCache 
+			  ? this.treeContentCache
 			  : this.createTreeContent();
+		  if (this.memoryShownList.length === 0) {
+		    this.memoryShownList = this.shownList;
+		  }
 			if (!global.searching) this.treeContentCache = treeContent;
 			if (this.opt.loop !== false) {
 				treeContent += '----------------';
@@ -577,10 +582,12 @@ class TreePrompt extends oldTreePrompt {
           // Hides cursor
           process.stdout.write("\x1b[?25l")
         }
-			  treeContent += "\n ⭞ "+chalk.blueBright(this.line)+normal
 			}
 			message += '\n' + this.paginator.paginate(treeContent,
 					this.shownList.indexOf(this.active), this.opt.pageSize);
+		  if (global.searching || global.searchMode) {
+		    message += "\n ⭞ "+chalk.blueBright(this.line)+normal
+		  }
 		}
 
 		let bottomContent;
@@ -601,7 +608,6 @@ class TreePrompt extends oldTreePrompt {
 	  const isFinal = this.status === 'answered';
 	  
 	  this.shownList.push(node)
-	  this.memoryShownList.push(node.value)
 		if (!this.active) {
 			this.active = node;
 		}
@@ -636,69 +642,64 @@ class TreePrompt extends oldTreePrompt {
 		const children = node.children || [];
 		let output = '';
 
-    let searchRegex, memoryIndent;
-    if (global.searchMode && this.searchTerm.length > 0) {
-      searchRegex = new RegExp(`${escapeRegExp(this.searchTerm)}`, "ig");
-    }
+    let memoryIndent;
 		children.forEach(async child => {
-		  if (global.searchMode && this.searchTerm.length > 0) {
-		    if (!child.name.match(searchRegex)) {
-          if (child?.children !== null && child.open
-              || this.memoryShownList.indexOf(child.value)) {
-            // Per quando devo mettere l'opzione di recursività ↓
-            if (typeof child?.children === "function") {
+		  if (global.searchMode && this.searchTerm[1].length > 0) {
+		    if (!child.name.match(this.searchTerm[0])) {
+          if (this.memoryShownList.length > 0) {
+            const isInShownList = this.memoryShownList.find(obj => obj.value === child.value);
+            if (isInShownList) {
+              if (isInShownList.open) {
+                output += this.printTree(child, "", indent);
+                return output += this.createTreeContent(child, indent + 2);
+              }
+              return output += this.printTree(child, "", indent);
+            } else return;
+          }
+          if (child.children !== null && child.open) {
+            if (typeof child.children === "function") {
               await this.prepareChildren(child)
             }
-            output += this.createTreeContent(child, indent);
-            // Magari ottenere un array che dice se ha trovato qualcosa dentro o meno?
-            // e far si che ritorna se trova nulla o è un file? 
-          }
-          return;
-		    } else {
-		      if (child.children !== null && child.open) return output += this.createTreeContent(child, indent);
-		      if (!this.shownList.reverse()
-                .find(o => o.value === child.parent?.value)) {
-	          function searchUp(current, objs, surface = false) {
-		          if (Object.keys(current.parent).length < 3) surface = true;
-	            const decrescent = (surface) ? objs.reverse() : objs;
-	            
-  		        for (const folder of decrescent) {
-  		          if (surface) {
-      		        output += thisClass.printTree(folder, "", indent);
-      		        indent += 2;
-      		        continue;
-  		          }
-  		          if (Object.hasOwn(current.parent, "name")) {
-  	              objs.push(current.parent)
-  	              return searchUp(current.parent, objs);
-  		          }
-  		        }
-	          }
-	          if (Object.keys(child.parent).length > 2) {
-  	          searchUp(child.parent, [child.parent])
-	          }
-		      } else {
-		        function searchUp(current, objs, surface = false) {
-		          if (memoryIndent?.value === current?.value) return;
-		          if (Object.keys(current.parent).length < 3) surface = true;
-	            const decrescent = (surface) ? objs.reverse() : objs;
-	            
-  		        for (const folder of decrescent) {
-  		          if (surface) {
-      		        indent += 2;
-      		        continue;
-  		          }
-  		          if (Object.hasOwn(current.parent, "name")) {
-  	              objs.push(current.parent)
-  	              return searchUp(current.parent, objs);
-  		          }
-  		        }
-	          }
-	          if (Object.keys(child.parent).length > 2) {
-  	          searchUp(child.parent, [child.parent])
-  	          memoryIndent = child.parent;
-	          }
-		      }
+            
+            const thisClass = this;
+            const slash = (platform === "win32") ? "\\\\" : "\\/";
+            const regex = new RegExp(`^(?:[^${slash}]*${slash})*`, "g");
+            const folder = this.mapOfTree.get(child.value.slice(0, -1));
+            function findAMatch(folder, child) {
+              if (!!folder instanceof Object) {
+                throw new TypeError("folder must be an object")
+              }
+              if (folder.children.length === 0) return;
+              const hasBeenFound = folder.children
+                .find(string => {
+                  string = (string instanceof Object)
+                    ? string.value
+                    : string;
+                  if (string.includes(sep, string.length-2)) string = string.slice(0, -1);
+                  return string
+                    .replaceAll(regex, "")
+                    .match(thisClass.searchTerm[0])
+                });
+              if (!hasBeenFound) {
+                for (const obj of child.children) {
+                  if (!obj.value.includes(sep, obj.value.length-2)) break;
+                  if (obj.open) {
+                    const hasBeenFound = findAMatch(obj, obj);
+                    if (hasBeenFound) return true;
+                  }
+                }
+                // If at the very end it finds nothing...
+                // OR if there aren't open folders...
+                return false;
+              }
+              return true;
+            }
+            
+            if (findAMatch(folder, child)) {
+              output += this.printTree(child, "", indent);
+              return output += this.createTreeContent(child, indent + 2);
+            } else return;
+          } else return;
 		    }
       }
 			output += this.printTree(child, "", indent);
@@ -772,12 +773,27 @@ class TreePrompt extends oldTreePrompt {
 	      global.searchMode = false;
 	      global.searching = false;
 	    } else {
-	      this.searchTerm = this.line;
+	      this.searchTerm = [
+	        new RegExp(`${escapeRegExp(this.line)}`, "ig"),
+	        this.line
+        ];
+        if (this.memoryShownList.length > 0) this.memoryShownList = [];
 	      global.searching = false;
 	    }
 	    return this.render();
 	  }
 	  return this.treePromptResult.next(result)
+	}
+	toggleOpen() {
+		if (!this.active.children) return;
+
+		this.active.open = !this.active.open;
+
+    // It was missing from the original class...
+    if (typeof this.active.children === "function") {
+      return this.prepareChildrenAndRender(this.active);
+    }
+		this.render();
 	}
 	onSubmit() {
 	  global.searching = false;

@@ -464,7 +464,8 @@ async function mainMenu(refresh, archiveFilePassed) {
     name: "selected",
     multiple: true,
     pageSize: inquirerPagePromptsSize,
-    tree: createDirectoryLister("surface")
+    tree: createDirectoryLister("surface"),
+    mapOfTree: mappedFSStructure
   })
   addRemove_Keypress("complete", thingsToClean);
   
