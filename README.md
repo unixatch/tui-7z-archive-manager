@@ -66,6 +66,13 @@ Pressing enter will show all the available commands
   - `Shift + i` → shows only information about the archive;
 - `h` → help command;
 
+When using the info command:
+
+- `Ctrl + arrow up` → Goes to the first item in the list
+- `Ctrl + arrow down` → Goes to the last item in the list
+- `Page up` → Goes 3 items forwards normally but if the amount of items is less or equal to 3, it's like using w or up arrow
+- `Page down` → Goes 3 items backwards normally but if the amount of items is less or equal to 3, it's like using s or down arrow
+
 ## Options
 
 1. **inquirerPagePrompsSize** → the amount of things that prompts can show at once (e.g the list of the archive) (_default: 20_);

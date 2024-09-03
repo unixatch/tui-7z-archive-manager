@@ -212,7 +212,12 @@ const helpShortcuts = () => {
     ${bold+underline}i${normal} —→ ${dimGray}information command${normal}
       ${bold+underline}Shift + i${normal} —→ ${dimGray}shows only information about the archive\n${normal}
     ${bold+underline}o${normal} —→ ${dimGray}open command${normal}
-    ${bold+underline}h${normal} —→ ${dimGray}help command, that is this prompt${normal}
+    ${bold+underline}h${normal} —→ ${dimGray}help command, that is this prompt${normal}\n
+  When using the info command:
+    ${bold+underline}Ctrl + arrow up${normal} —→ ${dimGray}Goes to the first item in the list${normal}
+    ${bold+underline}Ctrl + arrow down${normal} —→ ${dimGray}Goes to the last item in the list${normal}
+    ${bold+underline}Page up${normal} —→ ${dimGray}Goes 3 items forwards normally but if the amount of items is less or equal to 3, it's like using w or up arrow${normal}
+    ${bold+underline}Page down${normal} —→ ${dimGray}Goes 3 items backwards normally but if the amount of items is less or equal to 3, it's like using s or down arrow${normal}
   `
   console.log(helpText)
 }
