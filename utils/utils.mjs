@@ -666,7 +666,7 @@ class TreePrompt extends oldTreePrompt {
             const regex = new RegExp(`^(?:[^${slash}]*${slash})*`, "g");
             const folder = this.mapOfTree.get(child.value.slice(0, -1));
             function findAMatch(folder, child) {
-              if (!!folder instanceof Object) {
+              if (!folder instanceof Object) {
                 throw new TypeError("folder must be an object")
               }
               if (folder.children.length === 0) return;
@@ -761,6 +761,7 @@ class TreePrompt extends oldTreePrompt {
 	  process.stdout.write("\x1b[?25l")
 	  this.line = "";
 	  this.searchTerm = "";
+	  this.memoryShownList = [];
 	  global.searchMode = false;
 	  global.searching = false;
 	  this.render()
@@ -773,6 +774,7 @@ class TreePrompt extends oldTreePrompt {
 	      global.searchMode = false;
 	      global.searching = false;
 	    } else {
+	      if (this.searchTerm[1] !== this.line) this.active = this.shownList[0];
 	      this.searchTerm = [
 	        new RegExp(`${escapeRegExp(this.line)}`, "ig"),
 	        this.line
