@@ -797,6 +797,7 @@ async function cutCommand(list, archiveFile) {
   })
   addRemove_Keypress("close")
   if (global.command === "backToMainMenu") {
+    mappedFSStructure.set("surface", surface)
     return clearLastLines([0, -2]);
   }
   
