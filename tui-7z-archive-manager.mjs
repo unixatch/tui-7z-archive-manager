@@ -126,6 +126,14 @@ if (global.parameter === "--back") {
   // False
   skipToNewlyCreatedArchive = global.skipCreatedArchive;
 }
+if (global.parameter === "--recursive") {
+  delete global.parameter;
+  recursiveSearch = true;
+}
+if (global.parameter === "--no-recursive") {
+  delete global.parameter;
+  recursiveSearch = false;
+}
 // --create
 if (global.skipToCreateArchive) {
   surfaceCount = 0;
@@ -458,7 +466,8 @@ async function mainMenu(refresh, archiveFilePassed) {
     multiple: true,
     pageSize: inquirerPagePromptsSize,
     tree: createDirectoryLister("surface"),
-    mapOfTree: mappedFSStructure
+    mapOfTree: mappedFSStructure,
+    recursiveSearch: recursiveSearch
   })
   addRemove_Keypress("complete", thingsToClean);
   

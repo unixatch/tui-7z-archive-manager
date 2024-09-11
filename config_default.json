@@ -1,5 +1,6 @@
 {
   "inquirerPagePromptsSize": 20,
   "skipToNewlyCreatedArchive": true,
-  "backToMenuAfterCreatedArchive": false
+  "backToMenuAfterCreatedArchive": false,
+  "recursiveSearch": true
 }

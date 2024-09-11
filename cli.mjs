@@ -59,8 +59,16 @@ const actUpOnPassedArgs = async (args) => {
           if (global.parameter === undefined) skipToNewlyCreatedArchive()
           break;
         }
-        case /^(?:--back|\/b|-b|\/b)$/.test(arg) && arg: {
+        case /^(?:--back|\/back|-b|\/b)$/.test(arg) && arg: {
           if (global.parameter === undefined) backToMenuAfterCreatedArchive()
+          break;
+        }
+        case /^(?:--recursive|\/recursive|-r|\/r)$/.test(arg) && arg: {
+          if (global.parameter === undefined) recursiveMode()
+          break;
+        }
+        case /^(?:--no-recursive|\/no-recursive|-nr|\/nr)$/.test(arg) && arg: {
+          if (global.parameter === undefined) noToRecursiveMode()
           break;
         }
         case /^(?:--help|\/help|-h|\/h|\/\?)$/.test(arg) && arg: {
@@ -112,6 +120,8 @@ const backToMenuAfterCreatedArchive = () => {
   global.goBackInsteadOfSkippingForCreatedArchive = true;
   global.skipCreatedArchive = false;
 }
+const recursiveMode = () => global.parameter = "--recursive"
+const noToRecursiveMode = () => global.parameter = "--no-recursive"
 
 const updatePageSize = arg => {
   if (!Number.isInteger(parseInt(arg))
