@@ -488,16 +488,18 @@ class TreePrompt extends oldTreePrompt {
     .pipe(
       filter(({ key }) => {
         // Prevents double renders when unneeded
-        switch (key.name) {
-          case "left":
-          case "right":
-          case "up":
-          case "down":
-          case "escape":
-          case "tab":
+        switch (key.sequence) {
+          case "\x1B[D": // Left
+          case "\x1B[C": // Right
+          case "\x1B[A": // Up
+          case "\x1B[B": // Down
+          case "\x1B":   // Escape
+          case "\t":     // Tab
+          case "\r":     // Enter
+          case "\x06":   // Ctrl + f
             return false;
           
-          case "space":
+          case " ":
             return global.searching;
           default:
             return true;
@@ -532,7 +534,7 @@ class TreePrompt extends oldTreePrompt {
 		.forEach(this.onTabKey.bind(this))
 	}
 
-  render(error) {
+  async render(error) {
     // Getting rid of the blue answers
 	  // for cleaning purposes only if answered
     if (this.status === 'answered') {
@@ -550,45 +552,37 @@ class TreePrompt extends oldTreePrompt {
 			message += chalk.dim(`(${hint})`);
 		}
 
-		if (this.status === 'answered') {
-			let answer;
-			if (this.opt.multiple) {
-				answer = this.selectedList.map((item) => this.shortFor(item, true)).join(', ');
-			} else {
-				answer = this.shortFor(this.active, true);
-			}
-			message += chalk.cyan(answer);
-		} else {
-			this.shownList = [];
-			let treeContent = (global.searching) 
-			  ? this.treeContentCache
-			  : this.createTreeContent();
-		  if (this.memoryShownList.length === 0) {
-		    this.memoryShownList = this.shownList;
-		  }
-			if (!global.searching) this.treeContentCache = treeContent;
-			if (this.opt.loop !== false) {
-				treeContent += '----------------';
-			}
-			if (global.searching || global.searchMode) {
-        if (global.firstSearch) {
-  			  // Shows cursor
-          process.stdout.write("\x1b[?25h")
-          this.rl.line = this.line;
-          this.rl.cursor = this.rl.line.length;
-          global.firstSearch = false;
-        }
-        if (!global.searching && !global.firstSearch) {
-          // Hides cursor
-          process.stdout.write("\x1b[?25l")
-        }
-			}
-			message += '\n' + this.paginator.paginate(treeContent,
-					this.shownList.indexOf(this.active), this.opt.pageSize);
-		  if (global.searching || global.searchMode) {
-		    message += "\n ⭞ "+chalk.blueBright(this.line)+normal
-		  }
+		this.shownList = [];
+		let treeContent = (global.searching) 
+		  ? this.treeContentCache
+		  : await this.createTreeContent();
+	  if (this.memoryShownList.length === 0 && global.searchMode) {
+	    if (this.opt.recursiveSearch) this.fixPositionActive = true;
+	    this.memoryShownList = this.shownList;
+	  } else if (this.fixPositionActive) delete this.fixPositionActive;
+	  
+		if (!global.searching) this.treeContentCache = treeContent;
+		if (this.opt.loop !== false) {
+			treeContent += '----------------';
 		}
+		if (global.searching || global.searchMode) {
+      if (global.firstSearch) {
+			  // Shows cursor
+        process.stdout.write("\x1b[?25h")
+        this.rl.line = this.line;
+        this.rl.cursor = this.rl.line.length;
+        global.firstSearch = false;
+      }
+      if (!global.searching && !global.firstSearch) {
+        // Hides cursor
+        process.stdout.write("\x1b[?25l")
+      }
+		}
+		message += '\n' + this.paginator.paginate(treeContent,
+				this.shownList.indexOf(this.active), this.opt.pageSize);
+	  if (global.searching || global.searchMode) {
+	    message += "\n ⭞ "+chalk.blueBright(this.line)+normal
+	  }
 
 		let bottomContent;
 
@@ -637,13 +631,60 @@ class TreePrompt extends oldTreePrompt {
 		}
 		return output;
 	}
-	createTreeContent(node = this.tree, indent = 2) {
-	  const thisClass = this;
+	async findRecursivelyAMatch(folder, child, regex) {
+	  if (!folder instanceof Object) {
+      throw new TypeError("folder must be an object")
+    }
+    if (!regex instanceof RegExp) {
+      throw new TypeError("regex must be a regular expression")
+    }
+    if (typeof folder.children === "function") {
+      await this.prepareChildren(folder)
+    }
+    if (typeof child.children === "function") {
+      await this.prepareChildren(child)
+    }
+    if (folder.children.length === 0) return;
+    let hasBeenFound = folder.children
+      .find(string => {
+        string = (string instanceof Object)
+          ? string.value
+          : string;
+        // Removes the slash at the end
+        if (string.includes(sep, string.length-2)) string = string.slice(0, -1);
+        return string
+          .replaceAll(regex, "")
+          .match(this.searchTerm[0])
+      });
+    if (hasBeenFound instanceof Object) hasBeenFound = hasBeenFound.value;
+    if (!hasBeenFound) {
+      for (const obj of child.children) {
+        if (typeof obj.children === "function") {
+          await this.prepareChildren(obj)
+        }
+        // File
+        if (!obj.children) {
+          if (obj.name.match(this.searchTerm[0])) return true;
+          continue;
+        }
+        // Folder
+        if (obj.open || this.opt.recursiveSearch) {
+          const hasBeenFound = await this.findRecursivelyAMatch(obj, obj, regex);
+          if (hasBeenFound) return true;
+        }
+      }
+      // If at the very end it finds nothing...
+      // OR if there aren't open folders...
+      return false;
+    }
+    return true;
+	}
+	async createTreeContent(node = this.tree, indent = 2) {
 		const children = node.children || [];
 		let output = '';
 
     let memoryIndent;
-		children.forEach(async child => {
+    for (const child of children) {
 		  if (global.searchMode && this.searchTerm[1].length > 0) {
 		    if (!child.name.match(this.searchTerm[0])) {
           if (this.memoryShownList.length > 0) {
@@ -651,63 +692,42 @@ class TreePrompt extends oldTreePrompt {
             if (isInShownList) {
               if (isInShownList.open) {
                 output += this.printTree(child, "", indent);
-                return output += this.createTreeContent(child, indent + 2);
+                output += await this.createTreeContent(child, indent + 2);
+                continue;
               }
-              return output += this.printTree(child, "", indent);
-            } else return;
+              output += this.printTree(child, "", indent);
+              continue;
+            } else continue;
           }
-          if (child.children !== null && child.open) {
+          if (child.children !== null && (child.open || this.opt.recursiveSearch)) {
             if (typeof child.children === "function") {
               await this.prepareChildren(child)
             }
             
-            const thisClass = this;
             const slash = (platform === "win32") ? "\\\\" : "\\/";
             const regex = new RegExp(`^(?:[^${slash}]*${slash})*`, "g");
             const folder = this.mapOfTree.get(child.value.slice(0, -1));
-            function findAMatch(folder, child) {
-              if (!folder instanceof Object) {
-                throw new TypeError("folder must be an object")
-              }
-              if (folder.children.length === 0) return;
-              const hasBeenFound = folder.children
-                .find(string => {
-                  string = (string instanceof Object)
-                    ? string.value
-                    : string;
-                  if (string.includes(sep, string.length-2)) string = string.slice(0, -1);
-                  return string
-                    .replaceAll(regex, "")
-                    .match(thisClass.searchTerm[0])
-                });
-              if (!hasBeenFound) {
-                for (const obj of child.children) {
-                  if (!obj.value.includes(sep, obj.value.length-2)) break;
-                  if (obj.open) {
-                    const hasBeenFound = findAMatch(obj, obj);
-                    if (hasBeenFound) return true;
-                  }
-                }
-                // If at the very end it finds nothing...
-                // OR if there aren't open folders...
-                return false;
-              }
-              return true;
-            }
             
-            if (findAMatch(folder, child)) {
+            if (await this.findRecursivelyAMatch(folder, child, regex)) {
               output += this.printTree(child, "", indent);
-              return output += this.createTreeContent(child, indent + 2);
-            } else return;
-          } else return;
+              if (child.open) {
+                output += await this.createTreeContent(child, indent + 2);
+              } else if (this.opt.recursiveSearch) {
+                await this.createTreeContent(child, indent + 2);
+              }
+              continue;
+            }
+            continue;
+          }
+          continue;
 		    }
       }
 			output += this.printTree(child, "", indent);
 
 			if (child.open) {
-				output += this.createTreeContent(child, indent + 2)
+				output += await this.createTreeContent(child, indent + 2)
 			}
-		})
+    }
 		return output
 	}
 	onUpKey() {
@@ -724,6 +744,15 @@ class TreePrompt extends oldTreePrompt {
 	    this.line = this.rl.line;
 	    return this.render();
 	  }
+		// Fixes the disappearing selection after pressing enter and down on a filtered list
+		if (this.fixPositionActive) {
+		  delete this.fixPositionActive;
+		  if (this.active.children !== null) {
+		    const secondItem = this.mapOfTree.get("surface")[1];
+		    this.active = this.shownList.find(obj => obj.value.slice(0, -1) === secondItem);
+  		  return this.render();
+		  }
+		}
 	  super.onDownKey()
 	}
 	onRightKey() {
@@ -797,10 +826,21 @@ class TreePrompt extends oldTreePrompt {
     }
 		this.render();
 	}
-	onSubmit() {
+	onSubmit(state) {
 	  global.searching = false;
 	  global.searchMode = false;
-	  super.onSubmit()
+	  
+	  this.status = 'answered';
+
+		this.render();
+
+		this.screen.done();
+		// Shows cursor
+    process.stdout.write("\x1b[?25h")
+		
+
+		this.done(this.opt.multiple ?
+				this.selectedList.map((item) => this.valueFor(item)) : state.value);
 	}
   close() {
     this.onSubmit(this);
