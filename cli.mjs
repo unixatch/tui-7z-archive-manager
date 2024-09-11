@@ -191,11 +191,17 @@ const help = () => {
     ${green}--back${normal}, ${green}/back${normal}, ${green}-b${normal}, ${green}/b${normal}:
       ${dimGray+italics}Goes back to the current archive at the main menu${normal}
     
+    ${green}--recursive${normal}, ${green}/recursive${normal}, ${green}-r${normal}, ${green}/r${normal}:
+      ${dimGray+italics}Forces the recursive search mode${normal}
+    
+      ${green}--no-recursive${normal}, ${green}/no-recursive${normal}, ${green}-nr${normal}, ${green}/nr${normal}:
+        ${dimGray+italics}Disables forcefully the recursive search mode${normal}
+    
     ${green}--help${normal}, ${green}/help${normal}, ${green}-h${normal}, ${green}/h${normal}, ${green}/?${normal}:
       ${dimGray+italics}Shows this help message${normal}
     
-    ${green}--help-shortcuts${normal}, ${green}/help-shortcuts${normal}, ${green}-hs${normal}, ${green}/hs${normal}:
-      ${dimGray+italics}Shows the available shortcuts${normal}
+      ${green}--help-shortcuts${normal}, ${green}/help-shortcuts${normal}, ${green}-hs${normal}, ${green}/hs${normal}:
+        ${dimGray+italics}Shows the available shortcuts${normal}
     
     ${green}--version${normal}, ${green}/version${normal}, ${green}-v${normal}, ${green}/v${normal}:
       ${dimGray+italics}Shows the installed version${normal}
@@ -222,6 +228,7 @@ const helpShortcuts = () => {
     ${bold+underline}i${normal} —→ ${dimGray}information command${normal}
       ${bold+underline}Shift + i${normal} —→ ${dimGray}shows only information about the archive\n${normal}
     ${bold+underline}o${normal} —→ ${dimGray}open command${normal}
+    ${bold+underline}Ctrl + f${normal} —→ ${dimGray}Search command${normal}
     ${bold+underline}h${normal} —→ ${dimGray}help command, that is this prompt${normal}\n
   When using the info command:
     ${bold+underline}Ctrl + arrow up${normal} —→ ${dimGray}Goes to the first item in the list${normal}

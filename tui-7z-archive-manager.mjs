@@ -1709,6 +1709,7 @@ async function helpCommand() {
     `  ${bold+underline}i${normal} —→ ${dimGray}information command${normal}`,
     `    ${bold+underline}Shift + i${normal} —→ ${dimGray}shows only information about the archive${normal}\n`,
     `  ${bold+underline}o${normal} —→ ${dimGray}open command${normal}`,
+    `  ${bold+underline}Ctrl + f${normal} —→ ${dimGray}Search command${normal}`,
     `  ${bold+underline}h${normal} —→ ${dimGray}help command, that is this prompt${normal}`,
     "",
     `  ${dimGrayBold}When using the info command:${normal}\n`,
