@@ -59,6 +59,7 @@ const {
   addRemove_Keypress,
   getStringList,
   promptWithKeyPress,
+  checkTypesFromConfig,
   TreePrompt,
   inquirerFileTreeSelection,
   PressToContinuePrompt,
@@ -101,23 +102,15 @@ const typeOfSlash = (platform === "win32") ? "\\\\" : "\\/";
 
 
 // User's configurations
+let fileJson = JSON.parse(readFileSync(JSONConfigPath).toString());
 let { 
   inquirerPagePromptsSize,
   skipToNewlyCreatedArchive,
-  backToMenuAfterCreatedArchive
-} = JSON.parse(readFileSync(JSONConfigPath).toString());
-if (!Number.isInteger(inquirerPagePromptsSize)) {
-  console.log(red+"Page size must be a number"+normal)
-  process.exit();
-}
-if (typeof skipToNewlyCreatedArchive !== "boolean") {
-  console.log(red+'"skipToNewlyCreatedArchive" must be a true or false'+normal)
-  process.exit();
-}
-if (typeof backToMenuAfterCreatedArchive !== "boolean") {
-  console.log(red+'"backToMenuAfterCreatedArchive" must be a true or false'+normal)
-  process.exit();
-}
+  backToMenuAfterCreatedArchive,
+  recursiveSearch
+} = fileJson;
+checkTypesFromConfig(fileJson)
+
 // Replacements if the user used 1 of the available parameters
 if (global.parameter === "--skip") {
   delete global.parameter;

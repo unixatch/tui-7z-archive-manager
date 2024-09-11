@@ -422,6 +422,24 @@ function promptWithKeyPress(typeOfKeyEvent, promptFunc, isCustomPrompt = true) {
     }
   });
 }
+function checkTypesFromConfig(fileJson) {
+  if (!Number.isInteger(fileJson.inquirerPagePromptsSize)) {
+    console.log(red+"Page size must be a number"+normal)
+    process.exit();
+  }
+  if (typeof fileJson.skipToNewlyCreatedArchive !== "boolean") {
+    console.log(red+'"skipToNewlyCreatedArchive" must be true or false'+normal)
+    process.exit();
+  }
+  if (typeof fileJson.backToMenuAfterCreatedArchive !== "boolean") {
+    console.log(red+'"backToMenuAfterCreatedArchive" must be true or false'+normal)
+    process.exit();
+  }
+  if (typeof fileJson.recursiveSearch !== "boolean") {
+    console.log(red+'"recursiveSearch" must be true or false'+normal)
+    process.exit();
+  }
+}
 
 class TreePrompt extends oldTreePrompt {
   constructor(questions, rl, answers) {
@@ -880,6 +898,7 @@ export {
   clearLastLines,
   getStringList,
   promptWithKeyPress,
+  checkTypesFromConfig,
   TreePrompt,
   inquirerFileTreeSelection,
   PressToContinuePrompt,
