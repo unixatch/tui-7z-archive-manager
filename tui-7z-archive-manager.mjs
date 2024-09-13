@@ -947,7 +947,7 @@ async function addCommand(list, archiveFile, skipToSection) {
     const forbiddenNames_Win = /CON|PRN|AUX|NUL|COM1|COM2|COM3|COM4|COM5|COM6|COM7|COM8|COM9|LPT1|LPT2|LPT3|LPT4|LPT5|LPT6|LPT7|LPT8|LPT9/;
     const filename = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.input({
-        message: "Insert the filename that you want to create: ",
+        message: "Insert the filename that you want to create:",
         validate: (str) => {
           if (/^\s*$/m.test(str)) return "Write down something at least"
           if (dirname(str) === "/") return "Cannot use a single / as directory name"
@@ -976,6 +976,7 @@ async function addCommand(list, archiveFile, skipToSection) {
         }
       })
     }, false)
+    addRemove_Keypress("close")
     if (global.command === "backToMainMenu") {
       clearLastLines([0, (skipToSection) ? -1 : -2])
       return addCommand(list, archiveFile);
@@ -1032,7 +1033,7 @@ async function addCommand(list, archiveFile, skipToSection) {
     }
     const answer = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.input({ 
-        message: "Name of the 📂/: ",
+        message: "Name of the 📂/:",
         validate: (str) => {
           if (/^\s*$/m.test(str)) return "Write down something at least"
   
@@ -1056,6 +1057,7 @@ async function addCommand(list, archiveFile, skipToSection) {
         }
       })
     }, false);
+    addRemove_Keypress("close")
     if (global.command === "backToMainMenu") {
       clearLastLines([0, (skipToSection) ? -1 : -2])
       return addCommand(list, archiveFile);
@@ -1213,7 +1215,7 @@ async function renameCommand(list, archiveFile) {
   }, false);
   addRemove_Keypress("close")
   clearLastLines([0, -1])
-  if (global.command === "backToMainMenu") return clearLastLines([0, -1]);
+  if (global.command === "backToMainMenu") return;
   // Single rename
   if (list.selected.length === 1) {
     const selected = list.selected[0];
@@ -1402,6 +1404,7 @@ async function infoCommand(list, archiveFile, infoOnArchive = false) {
       type: "press-to-continue",
       enter: true
     })
+    console.log() // Required
     return clearLastLines([
       0, (await getAmountOfLinesToClean(onlyArchiveInfo)+1)*-1
     ]);
@@ -1494,7 +1497,7 @@ async function createCommand() {
     }
     nameOfArchive = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.input({
-        message: "Insert the name of archive: ",
+        message: "Insert the name of archive:",
         validate: (str) => {
           if (extname(str) === "." || extname(str) === "") {
             return "An extension is needed"
