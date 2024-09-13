@@ -24,13 +24,23 @@ Skips to the newly created archive at the main menu
 
 Goes back to the current archive at the main menu
 
+### --recursive, /recursive, -r, /r:
+
+Forces the recursive search mode
+
+<!---Had to because of GitHub's janky restrictions-->
+<h3>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;--no-recursive, /no-recursive, -nr, /nr:</h3>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Disables forcefully the recursive search mode
+
 ### --help, /help, -h, /h, /?:
 
 Shows the help message
 
-### --help-shortcuts, /help-shortcuts, -hs, /hs:
+<!---Had to because of GitHub's janky restrictions-->
+<h3>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;--help-shortcuts, /help-shortcuts, -hs, /hs:</h3>
 
-Shows the available shortcuts
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Shows the available shortcuts
 
 ### --version, /version, -v, /v:
 

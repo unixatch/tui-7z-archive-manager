@@ -1,3 +1,28 @@
+# CHANGELOG v.1.3.0
+
+- Added an **open** command;
+- Added a counter to the info command;
+
+- Added new shortcuts to the info command:
+  1. "**go to top**" and "**go to bottom**" shortcuts;
+  2. **pageup** and **pagedown** shortcuts (skips 3 items);
+
+- Added a **search** command for filtering the list of items inside the archive;
+- Added a new config option for recursive search (_default: true_);
+
+- Added 2 new parameters for forcing a recursive search or not:
+  1. **--recursive**|**/recursive**|**-r**|**/r**;
+  2. **--no-recursive**|**/no-recursive**|**-nr**|**/nr**;
+
+- Fixed a crash caused by pressing tab on a folder that has its "children" property not yet prepared;
+- Fixed some prompts not cleaning their events properly;
+
+- Small fixes:
+  1. Fixed the lingering dot when trying to move something if esc is pressed;
+  3. Fixed a regex detection for Windows regarding the back parameter;
+  4. Fixed some cleaning actions;
+  5. Fixed some prompt messages having an unnecessary space;
+
 # CHANGELOG v.1.2.0
 
 - Added more examples for how to set 7z globally and added the shortcuts inside the _README_ file;
