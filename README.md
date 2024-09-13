@@ -1,8 +1,10 @@
 # TUI 7zip Archive Manager
 
-This is a manager that uses 7zip for managing archives.
+This is a front-end manager for 7zip written in JavaScript and NodeJS.
 
 _**NOTE**: 7z must be globally available on your terminal for it to work, more on that [here](#how-7zip-should-be-installed)._
+
+![tui-7z-archive-manager](./tui-7z-archive-manager.gif)
 
 ## Why does it exist?
 
@@ -64,6 +66,7 @@ Pressing enter will show all the available commands
 - `Shift + n` → create an archive command;
 - `i` → information command;
   - `Shift + i` → shows only information about the archive;
+- `Ctrl + f` → search command;
 - `h` → help command;
 
 When using the info command:
@@ -78,6 +81,7 @@ When using the info command:
 1. **inquirerPagePrompsSize** → the amount of things that prompts can show at once (e.g the list of the archive) (_default: 20_);
 2. **skipToNewlyCreatedArchive** → goes directly to the newly created archive (_default: true_);
 3. **backToMenuAfterCreatedArchive** → goes back to the current archive and not the new one just created (_default: false_);
+4. **recursiveSearch** → enables or disables the recursive mode of the search command (_default: true_);
 
 ## Credits
 
