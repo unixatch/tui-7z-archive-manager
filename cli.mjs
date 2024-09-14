@@ -223,6 +223,7 @@ const helpShortcuts = () => {
       ${bold+underline}Ctrl + e${normal} —→ ${dimGray}skips to the "same place of archive" extraction${normal}
       ${bold+underline}Shift + e${normal} —→ ${dimGray}skips to the "different location" extraction\n${normal}
     ${bold+underline}r${normal} —→ ${dimGray}rename command${normal}
+    ${bold+underline}Shift + r${normal} —→ ${dimGray}rename archive command${normal}
     ${bold+underline}n${normal} —→ ${dimGray}change archive command${normal}
     ${bold+underline}Shift + n${normal} —→ ${dimGray}create an archive command${normal}
     ${bold+underline}i${normal} —→ ${dimGray}information command${normal}

@@ -136,6 +136,13 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
         process.stdin.on('keypress', searchMode)
         prompt.ui.activePrompt.render()
         break;
+      // Rename an archive command
+      // Shift + r
+      case "R":
+        (isCustomPrompt) 
+          ? prompt.ui.close()
+          : prompt.cancel()
+        return global.command = "renameArchiveCommand";
       // ———————————————————————————————————————————
       case "d":
         (isCustomPrompt) 

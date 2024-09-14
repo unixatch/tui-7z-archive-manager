@@ -556,6 +556,11 @@ async function mainMenu(refresh, archiveFilePassed) {
         if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
         mainMenu(true, archiveFile)
         return;
+      case "renameArchiveCommand":
+        const newName = await renameCommand(list, archiveFile, true);
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+        mainMenu(true, { selected: newName })
+        return;
       case "helpCommand":
         await helpCommand()
         mainMenu(false, archiveFile)
@@ -579,6 +584,11 @@ async function mainMenu(refresh, archiveFilePassed) {
           {
             name: "Change archive",
             value: "change-command"
+          },
+          {
+            name: "Rename archive",
+            value: "rename-archive-command",
+            description: "Renames the active archive with the new name"
           },
           {
             name: "Creation command",
@@ -648,6 +658,11 @@ async function mainMenu(refresh, archiveFilePassed) {
             const newArchiveFile = await changeArchive();
             if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, newArchiveFile)
+            break;
+          case 'rename-archive-command':
+            const newName = await renameCommand(list, archiveFile, true);
+            if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+            mainMenu(true, { selected: newName })
             break;
           case "create-command":
             const newlyCreatedArchive = await createCommand();
@@ -1151,12 +1166,59 @@ async function extractCommand(list, archiveFile, skipToSection) {
   await waitingMessage.close()
   return clearLastLines([0, -1]);
 }
-async function renameCommand(list, archiveFile) {
+async function renameCommand(list, archiveFile, onlyArchiveName = false) {
   if (archiveFile === undefined) {
     throw new Error("The archive file path is required");
   }
   addRemove_Keypress("close");
   delete global.command;
+  if (onlyArchiveName) {
+    if (asyncImports.input === "") {
+      const { default: input } = await import("@inquirer/input");
+      asyncImports.input = input;
+    }
+    const forbiddenNames_Win = /CON|PRN|AUX|NUL|COM1|COM2|COM3|COM4|COM5|COM6|COM7|COM8|COM9|LPT1|LPT2|LPT3|LPT4|LPT5|LPT6|LPT7|LPT8|LPT9/;
+    const newFileName = await promptWithKeyPress("quitPlusEsc", () => {
+      return asyncImports.input({
+        message: "Insert the filename that you want to use:",
+        validate: (str) => {
+          if (/^\s*$/m.test(str)) return "Write down something at least"
+          if (existsSync(str)) return "Can't use that name since it already exists"
+          if (platform === "win32") {
+            if (forbiddenChars_Win.test(str)) {
+              return "One of the characters is forbidden on Windows"
+            }
+            if (forbiddenNames_Win.test(parse(str).name)
+                || forbiddenNames_Win.test(parse(str).ext)) {
+              return "Cannot use that name because on Windows it's reserved"
+            }
+            if (str.endsWith(".") || str.endsWith(" ")) {
+              return "Cannot end with a . or space on Windows"
+            }
+          }
+
+          if (extname(str) && extname(str) !== ".") return true;
+          return "Input given is not valid"
+        },
+        theme: {
+          style: {
+            // Removes the blue answer on the right of the message 
+            // for easier cleaning of the line
+            answer: (str) => ""
+          }
+        }
+      })
+    }, false);
+    addRemove_Keypress("close")
+    if (global.command === "backToMainMenu") {
+      return clearLastLines([0, -1]);
+    }
+    
+    clearLastLines([0, -1])
+    renameSync(archiveFile.selected, newFileName);
+    return newFileName;
+  }
+  
   // Limited support message for certain archives
   if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
     await inquirer.prompt({
@@ -1707,6 +1769,7 @@ async function helpCommand() {
     `    ${bold+underline}Ctrl + e${normal} —→ ${dimGray}skips to the "same place of archive" extraction${normal}`,
     `    ${bold+underline}Shift + e${normal} —→ ${dimGray}skips to the "different location" extraction${normal}\n`,
     `  ${bold+underline}r${normal} —→ ${dimGray}rename command${normal}`,
+    `  ${bold+underline}Shift + r${normal} —→ ${dimGray}rename archive command${normal}`,
     `  ${bold+underline}n${normal} —→ ${dimGray}change archive command${normal}`,
     `  ${bold+underline}Shift + n${normal} —→ ${dimGray}create an archive command${normal}`,
     `  ${bold+underline}i${normal} —→ ${dimGray}information command${normal}`,
