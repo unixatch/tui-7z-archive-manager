@@ -668,7 +668,7 @@ async function mainMenu(refresh, archiveFilePassed) {
             const newlyCreatedArchive = await createCommand();
             if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, newlyCreatedArchive)
-            return;
+            break;
           case 'open-command':
             await openCommand(list, archiveFile)
             if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
@@ -703,7 +703,7 @@ async function mainMenu(refresh, archiveFilePassed) {
             await infoCommand(list, archiveFile)
             if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, archiveFile)
-            return;
+            break;
         }
     }
   })
