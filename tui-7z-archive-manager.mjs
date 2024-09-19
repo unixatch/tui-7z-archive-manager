@@ -823,14 +823,15 @@ async function cutCommand(list, archiveFile) {
   mappedFSStructure.set("surface", surface)
   const waitingMessage = new waitingMessagePrompt(gray+"Moving the selected 📄/📂, might take a while..."+normal+"\n")
   // Moving part
-  list.selected.forEach(async (path) => {
+  for (const path of list.selected) {
     if (newLocation.selected === ".") {
-      return await execute7zCommand([
+      await execute7zCommand([
         "rn", 
         archiveFile.selected,
         path,
         basename(path)
       ])
+      continue;
     }
     await execute7zCommand([
       "rn",
@@ -838,7 +839,7 @@ async function cutCommand(list, archiveFile) {
       path,
       newLocation.selected+basename(path)
     ])
-  })
+  }
   await waitingMessage.close()
   return clearLastLines([0, -1]);
 }
