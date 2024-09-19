@@ -16,9 +16,10 @@
 */
 
 import { lstatSync, readFileSync, writeFileSync } from "fs"
-import { join, resolve, extname } from "path"
+import { join, resolve, extname, sep } from "path"
 import { __dirname } from "./utils/cli_utils.mjs"
 import JSONConfigPath from "./createConfigJSON.mjs"
+import { platform, env } from "process"
 
 
 const actUpOnPassedArgs = async (args) => {
@@ -166,7 +167,26 @@ const setArchiveFilePath = path => {
     console.log(normalYellow+"The file given is not a supported archive"+normal);
     process.exit()
   }
-  return global.userProvidedArchiveFilePath = resolve(path);
+  let passedPath = resolve(path);
+  // Fix path for android (Termux) if needed
+  if (platform === "android" && passedPath.includes("/storage/emulated")) {
+    if (!env.HOME) {
+      console.log(red+"Missing $HOME variable"+normal)
+      process.exit();
+    }
+    try {
+      lstatSync(resolve(env.HOME, "storage"))
+    } catch(e) {
+      console.log(red+"Missing required storage folder"+normal)
+      process.exit();
+    }
+    const regex = new RegExp("\/storage\/emulated\/\\d*"+sep);
+    passedPath = passedPath.replace(
+      regex, 
+      join(env.HOME, "storage", "shared", sep)
+    );
+  }
+  return global.userProvidedArchiveFilePath = passedPath;
 }
 const help = () => {
   const helpText = `${underline}7zTuiManager${normal}
