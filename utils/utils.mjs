@@ -868,7 +868,8 @@ class TreePrompt extends oldTreePrompt {
 				this.selectedList.map((item) => this.valueFor(item)) : state.value);
 	}
   close() {
-    this.onSubmit(this);
+	  // Only runs when it's called for cancelling the prompt
+	  if (this.status !== "answered") this.onSubmit(this);
   }
 }
 class inquirerFileTreeSelection extends oldInquirerFileTreeSelection {
@@ -886,7 +887,8 @@ class inquirerFileTreeSelection extends oldInquirerFileTreeSelection {
     super.render(error);
   }
   close() {
-    this.onSubmit(this);
+	  // Only runs when it's called for cancelling the prompt
+	  if (this.status !== "answered") this.onSubmit(this);
   }
 }
 class PressToContinuePrompt extends oldPressToContinuePrompt {
