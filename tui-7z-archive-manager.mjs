@@ -74,6 +74,7 @@ inquirer.registerPrompt("tree", TreePrompt)
 inquirer.registerPrompt('press-to-continue', PressToContinuePrompt);
 class waitingMessagePrompt {
   constructor(message){
+    this.message = message;
     this.prompt = inquirer.prompt({
       name: "key",
       type: "press-to-continue",
@@ -156,17 +157,16 @@ async function getArchivePath() {
   if (global.userProvidedArchiveFilePath !== undefined) {
     const archiveFileString = global.userProvidedArchiveFilePath;
     delete global.userProvidedArchiveFilePath;
-    // For correct cleaning of the screen
-    process.stdout.write("\n")
     return {
       selected: archiveFileString
     };
   }
   
+  const message = "Choose an archive:";
   const archiveFile = await promptWithKeyPress("quitOnly", () => {
     return inquirer.prompt({
       type: "file-tree-selection",
-      message: "Choose an archive:",
+      message: message,
       name: "selected",
       pageSize: inquirerPagePromptsSize,
       enableGoUpperDirectory: true,
@@ -186,7 +186,7 @@ async function getArchivePath() {
     })
   });
   addRemove_Keypress("close")
-  clearLastLines([0, -1])
+  clearLastLines([0, await getAmountOfLinesToClean(message)*-1])
   return archiveFile;
 }
 async function createMap(archiveFilePassed) {
@@ -254,7 +254,7 @@ async function createMap(archiveFilePassed) {
   recursivelyMappingSubdirectories(surface[0])
   mappingFiles()
   
-  clearLastLines([0, -1])
+  clearLastLines([0, await getAmountOfLinesToClean(gray+"Loading list..."+normal)*-1])
   return archiveFile;
 }
 
@@ -419,6 +419,7 @@ function createDirectoryLister(dir) {
 
 // Needed because at the end mainMenu() is asynchronous
 (global.skipToCreateArchive) ? Function.prototype() : firstTime = true;
+let mainMessage = "";
 async function mainMenu(refresh, archiveFilePassed) {
   if (archiveFilePassed !== undefined 
       && !archiveFilePassed instanceof Object) {
@@ -428,8 +429,6 @@ async function mainMenu(refresh, archiveFilePassed) {
   if (firstTime) {
     archiveFile = await createMap();
     firstTime = false;
-    // Cleans the starting prompt
-    clearLastLines([0, -1])
     // Limited support message for certain archives
     if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
       global.hasLimitedSupport = true;
@@ -439,14 +438,20 @@ async function mainMenu(refresh, archiveFilePassed) {
   // Recreates the entire Map()
   if (refresh
       && archiveFilePassed instanceof Object) {
-    clearLastLines([0, -1])
+    if (global.command === "changeCommand" && global.hasLimitedSupport) {
+      delete global.hasLimitedSupport
+      // Cleans the \n
+      clearLastLines([0, -1])
+    } else {
+      clearLastLines([0, await getAmountOfLinesToClean(mainMessage)*-1])
+    }
     surfaceCount = 0;
     archiveFile = await createMap(archiveFilePassed);
   }
   // Uses the already available Map()
   if (!refresh
       && archiveFilePassed instanceof Object) {
-    clearLastLines([0, -1])
+    clearLastLines([0, await getAmountOfLinesToClean(mainMessage)*-1])
     surfaceCount = 0;
     archiveFile = archiveFilePassed;
   }
@@ -471,6 +476,7 @@ async function mainMenu(refresh, archiveFilePassed) {
   })
   addRemove_Keypress("complete", thingsToClean);
   
+  mainMessage = "Archive: "+basename(archiveFile.selected);
   thingsToClean.then(async (list) => {
     addRemove_Keypress("close")
     // Shortcuts
@@ -531,7 +537,7 @@ async function mainMenu(refresh, archiveFilePassed) {
         mainMenu(true, archiveFile)
         return;
       case "changeCommand":
-        const newArchiveFile = await changeArchive();
+        const newArchiveFile = await changeArchive(archiveFile);
         if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
         mainMenu(true, newArchiveFile)
         return;
@@ -567,8 +573,6 @@ async function mainMenu(refresh, archiveFilePassed) {
         return;
       
       default:
-        // Because prompt line gets repeated once
-        clearLastLines([0, -1]);
         // Just in case it still exists
         delete global.command
         if (asyncImports.select === "") {
@@ -576,6 +580,7 @@ async function mainMenu(refresh, archiveFilePassed) {
           asyncImports.select = select;
         }
         
+        const message = "Choose what to do:";
         const choices = [
           {
             name: "Help",
@@ -633,29 +638,36 @@ async function mainMenu(refresh, archiveFilePassed) {
         ]
         const selectedCommand = await promptWithKeyPress("quitPlusEsc", () => {
           return asyncImports.select({
-            message: "Choose what to do:",
+            message: message,
             choices: choices,
-            pageSize: inquirerPagePromptsSize
+            pageSize: inquirerPagePromptsSize,
+            theme: {
+              style: {
+                // Removes the blue answer on the right of the message 
+                // for easier cleaning of the line
+                answer: (str) => ""
+              }
+            }
           })
         }, false);
         if (global.command === "selectPromptQuit") {
-          clearLastLines([0, (choices.length+1)*-1])
+          clearLastLines([0, (await getAmountOfLinesToClean(message)+choices.length)*-1])
           return process.exit();
         }
         if (global.command === "backToMainMenu") {
-          clearLastLines([0, (choices.length+1)*-1])
+          clearLastLines([0, (await getAmountOfLinesToClean(message)+choices.length)*-1])
           return mainMenu(false, archiveFile);
         }
         
         // Cleans the select prompt
-        clearLastLines([0, -1])
+        clearLastLines([0, await getAmountOfLinesToClean(message)*-1])
         switch (selectedCommand) {
           case 'help-command':
             await helpCommand();
             mainMenu(false, archiveFile)
             break;
           case 'change-command':
-            const newArchiveFile = await changeArchive();
+            const newArchiveFile = await changeArchive(archiveFile);
             if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
             mainMenu(true, newArchiveFile)
             break;
@@ -715,22 +727,24 @@ async function deleteCommand(list, archiveFile) {
   delete global.command;
   // Limited support message for certain archives
   if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+    const message = normalYellow+"Cannot delete because of limited 7zip support for this archive format\n"+normal;
     await inquirer.prompt({
       name: "key",
       type: "press-to-continue",
       anyKey: true,
-      pressToContinueMessage: normalYellow+"Cannot delete because of limited 7zip support for this archive format\n"+normal
+      pressToContinueMessage: message
     })
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   if (list.selected.length < 1) {
+    const message = normalYellow+"Nothing was selected, cannot delete anything\n"+normal;
     await inquirer.prompt({
       name: "key",
       type: "press-to-continue",
       anyKey: true,
-      pressToContinueMessage: normalYellow+"Nothing was selected, cannot delete anything\n"+normal
+      pressToContinueMessage: message
     })
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   if (global.autoConfirm === undefined) {
     if (asyncImports.confirm === "") {
@@ -751,14 +765,15 @@ async function deleteCommand(list, archiveFile) {
         normal
       );
     })
+    const message = 'Confirm deletion of selected 📄/📂?';
     const answer = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.confirm({ 
-        message: 'Confirm deletion of selected 📄/📂?',
+        message: message,
         default: false
       })
     }, false)
     addRemove_Keypress("close")
-    clearLastLines([0, (list.selected.length+2)*-1])
+    clearLastLines([0, await getAmountOfLinesToClean("\n"+list.selected.join("\n")+"\n"+message)*-1])
     if (global.command === "backToMainMenu") return;
     if (!answer) return;
   }
@@ -766,7 +781,7 @@ async function deleteCommand(list, archiveFile) {
   const waitingMessage = new waitingMessagePrompt(gray+"Deleting the selected 📄/📂, might take a while..."+normal+"\n");
   await execute7zCommand(["d", archiveFile.selected, ...list.selected])
   await waitingMessage.close()
-  return clearLastLines([0, -1]);
+  return clearLastLines([0, (await getAmountOfLinesToClean(waitingMessage.message)-1)*-1]);
 }
 async function cutCommand(list, archiveFile) {
   if (archiveFile === undefined) {
@@ -775,32 +790,35 @@ async function cutCommand(list, archiveFile) {
   delete global.command;
   // Limited support message for certain archives
   if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+    const message = normalYellow+"Cannot move because of limited 7zip support for this archive format\n"+normal;
     await inquirer.prompt({
       name: "key",
       type: "press-to-continue",
       anyKey: true,
-      pressToContinueMessage: normalYellow+"Cannot move because of limited 7zip support for this archive format\n"+normal
+      pressToContinueMessage: message
     })
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   if (list.selected.length < 1) {
+    const message = normalYellow+"Nothing was selected, cannot move anything\n"+normal;
     await inquirer.prompt({
       name: "key",
       type: "press-to-continue",
       anyKey: true,
-      pressToContinueMessage: normalYellow+"Nothing was selected, cannot move anything\n"+normal
+      pressToContinueMessage: message
     })
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   surfaceCount = 0;
   const surface = mappedFSStructure.get("surface");
   const temporaryNewSurface = [".", ...surface];
   mappedFSStructure.set("surface", temporaryNewSurface)
   
+  const message = `Select the new location to move to:\n${gray}(selecting . = top-level of the archive)`;
   const newLocation = await promptWithKeyPress("quitPlusEsc", () => {
     return inquirer.prompt({
       type: "tree",
-      message: `Select the new location to move to:\n${gray}(selecting . = top-level of the archive)`,
+      message: message,
       name: "selected",
       pageSize: inquirerPagePromptsSize,
       multiple: false,
@@ -815,11 +833,10 @@ async function cutCommand(list, archiveFile) {
   addRemove_Keypress("close")
   if (global.command === "backToMainMenu") {
     mappedFSStructure.set("surface", surface)
-    return clearLastLines([0, -2]);
+    return clearLastLines([0, await getAmountOfLinesToClean(message)*-1]);
   }
   
-  // Cleans the gray text and message duplicate
-  clearLastLines([0, -3])
+  clearLastLines([0, await getAmountOfLinesToClean(message)*-1])
   mappedFSStructure.set("surface", surface)
   const waitingMessage = new waitingMessagePrompt(gray+"Moving the selected 📄/📂, might take a while..."+normal+"\n")
   // Moving part
@@ -841,7 +858,7 @@ async function cutCommand(list, archiveFile) {
     ])
   }
   await waitingMessage.close()
-  return clearLastLines([0, -1]);
+  return clearLastLines([0, (await getAmountOfLinesToClean(waitingMessage.message)-1)*-1]);
 }
 async function addCommand(list, archiveFile, skipToSection) {
   if (archiveFile === undefined) {
@@ -851,18 +868,19 @@ async function addCommand(list, archiveFile, skipToSection) {
   delete global.command;
   // Limited support message for certain archives
   if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+    const message = normalYellow+"Cannot add because of limited 7zip support for this archive format\n"+normal
     await inquirer.prompt({
       name: "key",
       type: "press-to-continue",
       anyKey: true,
-      pressToContinueMessage: normalYellow+"Cannot add because of limited 7zip support for this archive format\n"+normal
+      pressToContinueMessage: message
     })
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   
   // In case the user did a specific shortcut,
   // skip ahead to the part interested
-  let action;
+  let action, messageOfAddModeSelection;
   if (skipToSection === "file-selection"
       || skipToSection === "create-file"
       || skipToSection === "create-folder") {
@@ -874,72 +892,97 @@ async function addCommand(list, archiveFile, skipToSection) {
       const { default: select } = await import("@inquirer/select");
       asyncImports.select = select;
     }
+    messageOfAddModeSelection = "Choose how do you want to add:";
+    const choices = [
+      {
+        name: "File selector",
+        value: "file-selection",
+        description: "Select a file from the file system to be put inside the archive"
+      },
+      {
+        name: "New file",
+        value: "create-file",
+        description: "Create a brand new file and inserts it inside the archive"
+      },
+      {
+        name: "New folder/s",
+        value: "create-folder",
+        description: "Create brand-new folder/s inside the archive"
+      }
+    ]
     action = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.select({
-        message: "Choose how do you want to add:",
-        choices: [
-          {
-            name: "File selector",
-            value: "file-selection",
-            description: "Select a file from the file system to be put inside the archive"
-          },
-          {
-            name: "New file",
-            value: "create-file",
-            description: "Create a brand new file and inserts it inside the archive"
-          },
-          {
-            name: "New folder/s",
-            value: "create-folder",
-            description: "Create brand-new folder/s inside the archive"
+        message: messageOfAddModeSelection,
+        choices: choices,
+        theme: {
+          style: {
+            // Removes the blue answer on the right of the message 
+            // for easier cleaning of the line
+            answer: (str) => ""
           }
-        ]
+        }
       })
     }, false);
     if (global.command === "selectPromptQuit") {
-      clearLastLines([0, -5])
+      clearLastLines([0, (await getAmountOfLinesToClean(messageOfAddModeSelection)+choices.length+1)*-1])
       return process.exit();
     }
-    if (global.command === "backToMainMenu") return clearLastLines([0, -5]);
+    if (global.command === "backToMainMenu") return clearLastLines([0, (await getAmountOfLinesToClean(messageOfAddModeSelection)+choices.length+1)*-1]);
   }
   
   if (action === "file-selection") {
     // Recursive function to prevent an empty selection
     async function getFromFs() {
+      const messageOfPicker = "Pick the file or folder:";
       const fromFs = await promptWithKeyPress("quitPlusEsc", () => {
         return inquirer.prompt({
           type: "file-tree-selection",
-          message: "Pick the file or folder:",
+          message: messageOfPicker,
           name: "selection",
           pageSize: inquirerPagePromptsSize,
           enableGoUpperDirectory: true,
           multiple: true
         })
       });
+      addRemove_Keypress("close")
       if (global.command === "backToMainMenu") {
-        addRemove_Keypress("close")
-        return clearLastLines([0, (skipToSection) ? -1 : -2]);
+        return clearLastLines([
+          0, 
+          (skipToSection)
+            ? await getAmountOfLinesToClean(messageOfPicker)*-1
+            : await getAmountOfLinesToClean(messageOfAddModeSelection+"\n"+messageOfPicker)*-1
+        ]);
       }
       
       if (fromFs.selection.length === 0) {
-        // Cleans empty array lines
-        clearLastLines([0, -2]);
-        await inquirer.prompt({
-          name: "key",
-          type: "press-to-continue",
-          anyKey: true,
-          pressToContinueMessage: yellow+"You have to select something...\n"+normal
+        clearLastLines([0, await getAmountOfLinesToClean(messageOfPicker)*-1]);
+        const message = yellow+"You have to select something...\n"+normal;
+        await promptWithKeyPress("quitPlusEsc", () => {
+          return inquirer.prompt({
+            name: "key",
+            type: "press-to-continue",
+            anyKey: true,
+            pressToContinueMessage: message
+          })
         })
-        if (global.command === "backToMainMenu") {
-          addRemove_Keypress("close")
-          return clearLastLines([0, (skipToSection) ? -1 : -2]);
-        }
-        clearLastLines([0, -1]);
         addRemove_Keypress("close")
+        if (global.command === "backToMainMenu") {
+          return clearLastLines([
+            0, 
+            (skipToSection)
+              ? await getAmountOfLinesToClean(message.replace("\n", ""))*-1
+              : await getAmountOfLinesToClean(messageOfAddModeSelection+"\n"+message.replace("\n", ""))*-1
+          ]);
+        }
+        clearLastLines([0, await getAmountOfLinesToClean(message.replace("\n", ""))*-1]);
         return getFromFs();
       }
-      addRemove_Keypress("close")
-      clearLastLines([0, (skipToSection) ? -2 : -3])
+      clearLastLines([
+        0, 
+        (skipToSection) 
+          ? await getAmountOfLinesToClean(messageOfPicker)*-1
+          : await getAmountOfLinesToClean(messageOfAddModeSelection+"\n"+messageOfPicker)*-1
+      ])
       return fromFs;
     }
     const fromFs = await getFromFs();
@@ -948,7 +991,7 @@ async function addCommand(list, archiveFile, skipToSection) {
     const waitingMessage = new waitingMessagePrompt(gray+"Adding the selected 📄/📂, might take a while..."+normal+"\n")
     await execute7zCommand(["a", archiveFile.selected, ...fromFs.selection])
     await waitingMessage.close()
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(waitingMessage.message)-1)*-1]);
   }
   if (action === "create-file") {
     if (asyncImports.editor === "") {
@@ -961,9 +1004,10 @@ async function addCommand(list, archiveFile, skipToSection) {
     }
     const forbiddenChars_Win = /^<|>|:|"|\/|\\|\||\?|\*$/m;
     const forbiddenNames_Win = /CON|PRN|AUX|NUL|COM1|COM2|COM3|COM4|COM5|COM6|COM7|COM8|COM9|LPT1|LPT2|LPT3|LPT4|LPT5|LPT6|LPT7|LPT8|LPT9/;
+    const messageOfFilename = "Insert the filename that you want to create:";
     const filename = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.input({
-        message: "Insert the filename that you want to create:",
+        message: messageOfFilename,
         validate: (str) => {
           if (/^\s*$/m.test(str)) return "Write down something at least"
           if (dirname(str) === "/") return "Cannot use a single / as directory name"
@@ -994,25 +1038,46 @@ async function addCommand(list, archiveFile, skipToSection) {
     }, false)
     addRemove_Keypress("close")
     if (global.command === "backToMainMenu") {
-      clearLastLines([0, (skipToSection) ? -1 : -2])
+      clearLastLines([
+        0, 
+        (skipToSection)
+          ? await getAmountOfLinesToClean(messageOfFilename)*-1
+          : await getAmountOfLinesToClean(messageOfAddModeSelection+"\n"+messageOfFilename)*-1
+      ])
       return addCommand(list, archiveFile);
     }
+    const messageOfFileContent = "Creating a new file";
     const fileContent = await asyncImports.editor({
-      message: "Creating a new file",
+      message: messageOfFileContent,
       postfix: `${extname(filename)}`,
       default: '\nType "back()" on the first line in this file to go back to the 3 add modes\nOr type "quit()" on the first line to cleanly quit the program',
       waitForUseInput: false
     })
     if (/^back\(\)$/m.test(fileContent)) {
-      clearLastLines([0, (skipToSection) ? -2 : -3])
+      clearLastLines([
+        0, 
+        (skipToSection)
+          ? await getAmountOfLinesToClean(messageOfFilename+"\n"+messageOfFileContent)*-1
+          : await getAmountOfLinesToClean(messageOfAddModeSelection+"\n"+messageOfFilename+"\n"+messageOfFileContent)*-1
+      ])
       return addCommand(list, archiveFile);
     }
     if (/^quit\(\)$/m.test(fileContent)) {
-      clearLastLines([0, (skipToSection) ? -2 : -3])
+      clearLastLines([
+        0, 
+        (skipToSection)
+          ? await getAmountOfLinesToClean(messageOfFilename+"\n"+messageOfFileContent)*-1
+          : await getAmountOfLinesToClean(messageOfAddModeSelection+"\n"+messageOfFilename+"\n"+messageOfFileContent)*-1
+      ])
       return process.exit();
     }
     
-    clearLastLines([0, (skipToSection) ? -2 : -3])
+    clearLastLines([
+      0, 
+      (skipToSection)
+        ? await getAmountOfLinesToClean(messageOfFilename+"\n"+messageOfFileContent)*-1
+        : await getAmountOfLinesToClean(messageOfAddModeSelection+"\n"+messageOfFilename+"\n"+messageOfFileContent)*-1
+    ])
     const waitingMessage = new waitingMessagePrompt(gray+"Adding the new 📄, might take a while..."+normal+"\n")
     // Creation part
     let dedicatedTmpDir = resolve(tmpdir(), "7z-archive-manager");
@@ -1040,16 +1105,17 @@ async function addCommand(list, archiveFile, skipToSection) {
       { recursive: true }
     );
     await waitingMessage.close()
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(waitingMessage.message)-1)*-1]);
   }
   if (action === "create-folder") {
     if (asyncImports.input === "") {
       const { default: input } = await import("@inquirer/input");
       asyncImports.input = input;
     }
+    const messageOfFolderName = "Name of the 📂/:";
     const answer = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.input({ 
-        message: "Name of the 📂/:",
+        message: messageOfFolderName,
         validate: (str) => {
           if (/^\s*$/m.test(str)) return "Write down something at least"
   
@@ -1074,12 +1140,14 @@ async function addCommand(list, archiveFile, skipToSection) {
       })
     }, false);
     addRemove_Keypress("close")
-    if (global.command === "backToMainMenu") {
-      clearLastLines([0, (skipToSection) ? -1 : -2])
-      return addCommand(list, archiveFile);
-    }
+    clearLastLines([
+      0, 
+      (skipToSection)
+        ? await getAmountOfLinesToClean(messageOfFolderName)*-1
+        : await getAmountOfLinesToClean(messageOfAddModeSelection+"\n"+messageOfFolderName)*-1
+    ])
+    if (global.command === "backToMainMenu") return addCommand(list, archiveFile);
     
-    clearLastLines([0, (skipToSection) ? -1 : -2])
     const waitingMessage = new waitingMessagePrompt(gray+"Adding the new 📂, might take a while..."+normal+"\n")
     const dedicatedTmpDir = resolve(tmpdir(), "7z-archive-manager");
     mkdirSync(
@@ -1094,7 +1162,7 @@ async function addCommand(list, archiveFile, skipToSection) {
       { recursive: true }
     );
     await waitingMessage.close()
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(waitingMessage.message)-1)*-1]);
   }
 }
 async function extractCommand(list, archiveFile, skipToSection) {
@@ -1114,14 +1182,15 @@ async function extractCommand(list, archiveFile, skipToSection) {
       const { default: confirm } = await import("@inquirer/confirm");
       asyncImports.confirm = confirm;
     }
+    const message = 'Extract alongside the archive (y) or elsewhere (n)?';
     answer = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.confirm({ 
-        message: 'Extract alongside the archive (y) or elsewhere (n)?',
+        message: message,
         default: true
       })
     }, false)
     addRemove_Keypress("close")
-    clearLastLines([0, -1])
+    clearLastLines([0, await getAmountOfLinesToClean(message)*-1])
     if (global.command === "backToMainMenu") return;
   }
   
@@ -1139,10 +1208,11 @@ async function extractCommand(list, archiveFile, skipToSection) {
       )
     ])
   } else {
+    const message = "Pick the extraction destination:";
     const extractLocation = await promptWithKeyPress("quitPlusEsc", () => {
       return inquirer.prompt({
         type: "file-tree-selection",
-        message: "Pick the extraction destination:",
+        message: message,
         name: "selected",
         pageSize: inquirerPagePromptsSize,
         enableGoUpperDirectory: true,
@@ -1150,8 +1220,8 @@ async function extractCommand(list, archiveFile, skipToSection) {
       })
     })
     addRemove_Keypress("close")
-    if (global.command === "backToMainMenu") return clearLastLines([0, -1]);
-    clearLastLines([0, -2])
+    if (global.command === "backToMainMenu") return clearLastLines([0, await getAmountOfLinesToClean(message)*-1]);
+    clearLastLines([0, await getAmountOfLinesToClean(message)*-1]);
     
     waitingMessage = new waitingMessagePrompt(gray+"Extracting the selected 📄/📂, might take a while..."+normal+"\n");
     await execute7zCommand([
@@ -1165,7 +1235,7 @@ async function extractCommand(list, archiveFile, skipToSection) {
     ])
   }
   await waitingMessage.close()
-  return clearLastLines([0, -1]);
+  return clearLastLines([0, (await getAmountOfLinesToClean(waitingMessage.message)-1)*-1]);
 }
 async function renameCommand(list, archiveFile, onlyArchiveName = false) {
   if (archiveFile === undefined) {
@@ -1179,9 +1249,10 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
       asyncImports.input = input;
     }
     const forbiddenNames_Win = /CON|PRN|AUX|NUL|COM1|COM2|COM3|COM4|COM5|COM6|COM7|COM8|COM9|LPT1|LPT2|LPT3|LPT4|LPT5|LPT6|LPT7|LPT8|LPT9/;
+    const message = "Insert the new filename that you want to use:";
     const newFileName = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.input({
-        message: "Insert the filename that you want to use:",
+        message: message,
         validate: (str) => {
           if (/^\s*$/m.test(str)) return "Write down something at least"
           if (existsSync(str)) return "Can't use that name since it already exists"
@@ -1212,32 +1283,34 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
     }, false);
     addRemove_Keypress("close")
     if (global.command === "backToMainMenu") {
-      return clearLastLines([0, -1]);
+      return clearLastLines([0, await getAmountOfLinesToClean(message+" "+newFileName)*-1])
     }
     
-    clearLastLines([0, -1])
+    clearLastLines([0, await getAmountOfLinesToClean(message+" "+newFileName)*-1])
     renameSync(archiveFile.selected, newFileName);
     return newFileName;
   }
   
   // Limited support message for certain archives
   if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+    const message = normalYellow+"Cannot rename because of limited 7zip support for this archive format\n"+normal;
     await inquirer.prompt({
       name: "key",
       type: "press-to-continue",
       anyKey: true,
-      pressToContinueMessage: normalYellow+"Cannot rename because of limited 7zip support for this archive format\n"+normal
+      pressToContinueMessage: message
     })
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   if (list.selected.length < 1) {
+    const message = normalYellow+"Nothing was selected, cannot rename anything\n"+normal;
     await inquirer.prompt({
       name: "key",
       type: "press-to-continue",
       anyKey: true,
-      pressToContinueMessage: normalYellow+"Nothing was selected, cannot rename anything\n"+normal
+      pressToContinueMessage: message
     })
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   if (asyncImports.input === "") {
     const { default: input } = await import("@inquirer/input");
@@ -1245,9 +1318,10 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
   }
   const forbiddenChars_Win = /^<|>|:|"|\/|\\|\||\?|\*$/m;
   const forbiddenNames_Win = /CON|PRN|AUX|NUL|COM1|COM2|COM3|COM4|COM5|COM6|COM7|COM8|COM9|LPT1|LPT2|LPT3|LPT4|LPT5|LPT6|LPT7|LPT8|LPT9/;
+  const message = "Write the new name:";
   let newName = await promptWithKeyPress("quitPlusEsc", () => {
     return asyncImports.input({
-      message: "Write the new name:",
+      message: message,
       validate: (str) => {
         if (/^\s*$/m.test(str)) return "Write down something at least"
         if (str.includes("/")) {
@@ -1277,7 +1351,7 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
     })
   }, false);
   addRemove_Keypress("close")
-  clearLastLines([0, -1])
+  clearLastLines([0, await getAmountOfLinesToClean(message+" "+newName)*-1])
   if (global.command === "backToMainMenu") return;
   // Single rename
   if (list.selected.length === 1) {
@@ -1322,7 +1396,7 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
         : newName
     ])
     await waitingMessage.close()
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(waitingMessage.message)-1)*-1]);
   }
   
   // Multiple renames
@@ -1398,13 +1472,14 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
   const waitingMessage = new waitingMessagePrompt(gray+"Renaming the selected 📄/📂, might take a while..."+normal+"\n");
   await execute7zCommand(["rn", archiveFile.selected, ...renameArray])
   await waitingMessage.close()
-  return clearLastLines([0, -1]);
+  return clearLastLines([0, (await getAmountOfLinesToClean(waitingMessage.message)-1)*-1]);
 }
-async function changeArchive() {
-  const archiveFile = await promptWithKeyPress("quitPlusEsc", () => {
+async function changeArchive(archiveFile) {
+  const message = "Choose the new archive:";
+  const newArchiveFile = await promptWithKeyPress("quitPlusEsc", () => {
     return inquirer.prompt({
       type: "file-tree-selection",
-      message: "Choose the new archive:",
+      message: message,
       name: "selected",
       pageSize: inquirerPagePromptsSize,
       enableGoUpperDirectory: true,
@@ -1425,17 +1500,18 @@ async function changeArchive() {
   });
   addRemove_Keypress("close")
   if (global.command === "backToMainMenu") {
-    clearLastLines([0, -1])
+    clearLastLines([0, await getAmountOfLinesToClean(message)*-1])
     return;
   }
   global.command = "changeCommand";
-  clearLastLines([0, -2])
+  clearLastLines([0, await getAmountOfLinesToClean(message)*-1])
   if (global.hasLimitedSupport) {
     // Cleans the old message since we're changing archive
-    delete global.hasLimitedSupport
-    clearLastLines([0, -1])
+    clearLastLines([0, await getAmountOfLinesToClean(dimYellow+`The archive ${italics+basename(archiveFile.selected)+normal+dimYellow} has limited support from 7zip`+normal+"\n"+mainMessage)*-1])
+    // Necessary
+    console.log()
   }
-  return archiveFile;
+  return newArchiveFile;
 }
 async function infoCommand(list, archiveFile, infoOnArchive = false) {
   if (archiveFile === undefined) {
@@ -1447,13 +1523,14 @@ async function infoCommand(list, archiveFile, infoOnArchive = false) {
   addRemove_Keypress("close");
   delete global.command;
   if (list.selected.length < 1 && !infoOnArchive) {
+    const message = normalYellow+"Nothing was selected, cannot show info about anything\n"+normal;
     await inquirer.prompt({
       name: "key",
       type: "press-to-continue",
       anyKey: true,
-      pressToContinueMessage: normalYellow+"Nothing was selected, cannot show info about anything\n"+normal
+      pressToContinueMessage: message
     })
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   
   if (infoOnArchive) {
@@ -1553,6 +1630,7 @@ async function createCommand() {
   delete global.command;
   
   let nameOfArchive;
+  const messageForArchiveName = "Insert the name of archive:";
   if (!global.skipToCreateArchive) {
     if (asyncImports.input === "") {
       const { default: input } = await import("@inquirer/input");
@@ -1560,7 +1638,7 @@ async function createCommand() {
     }
     nameOfArchive = await promptWithKeyPress("quitPlusEsc", () => {
       return asyncImports.input({
-        message: "Insert the name of archive:",
+        message: messageForArchiveName,
         validate: (str) => {
           if (extname(str) === "." || extname(str) === "") {
             return "An extension is needed"
@@ -1582,55 +1660,55 @@ async function createCommand() {
     }, false);
     addRemove_Keypress("close")
     if (global.command === "backToMainMenu") {
-      return clearLastLines([0, -1])
+      return clearLastLines([0, await getAmountOfLinesToClean(messageForArchiveName)*-1])
     }
   } else nameOfArchive = global.skipToCreateArchive;
   
   // Recursive function to prevent an empty selection
   async function getFromFs() {
+    const messageOfPicker = "Pick the file/s or folder/s:";
     const fromFs = await promptWithKeyPress("quitPlusEsc", () => {
       return inquirer.prompt({
         type: "file-tree-selection",
-        message: "Pick the file/s or folder/s:",
+        message: messageOfPicker,
         name: "selection",
         pageSize: inquirerPagePromptsSize,
         enableGoUpperDirectory: true,
         multiple: true
       })
     });
+    addRemove_Keypress("close")
     if (global.command === "backToMainMenu") {
-      addRemove_Keypress("close")
-      return clearLastLines([0, -2]);
+      return clearLastLines([0, await getAmountOfLinesToClean(messageForArchiveName+"\n"+messageOfPicker)*-1]);
     }
     
     if (fromFs.selection.length === 0) {
-      // Cleans empty array lines
-      clearLastLines([0, -2]);
-      await inquirer.prompt({
-        name: "key",
-        type: "press-to-continue",
-        anyKey: true,
-        pressToContinueMessage: yellow+"You have to select something...\n"+normal
+      clearLastLines([0, await getAmountOfLinesToClean(messageOfPicker)*-1]);
+      const message = yellow+"You have to select something...\n"+normal;
+      await promptWithKeyPress("quitPlusEsc", () => {
+        return inquirer.prompt({
+          name: "key",
+          type: "press-to-continue",
+          anyKey: true,
+          pressToContinueMessage: message
+        })
       })
-      if (global.command === "backToMainMenu") {
-        addRemove_Keypress("close")
-        return clearLastLines([0, -2]);
-      }
-      clearLastLines([0, -1]);
       addRemove_Keypress("close")
+      if (global.command === "backToMainMenu") {
+        return clearLastLines([0, await getAmountOfLinesToClean(messageForArchiveName+"\n"+message.replace("\n", ""))*-1]);
+      }
+      clearLastLines([0, await getAmountOfLinesToClean(message.replace("\n", ""))*-1]);
       return getFromFs();
     }
-    addRemove_Keypress("close")
-    clearLastLines([0, -2])
+    clearLastLines([0, await getAmountOfLinesToClean(messageOfPicker)*-1]);
     return fromFs;
   }
   const itemsToInsertInArchive = await getFromFs();
-  if (global.command === "backToMainMenu") return;
   
   const waitingMessage = new waitingMessagePrompt(gray+`Creating "${nameOfArchive}", might take a while...`+normal+"\n")
   await execute7zCommand(["a", nameOfArchive, ...itemsToInsertInArchive.selection])
   await waitingMessage.close()
-  clearLastLines([0, -2])
+  clearLastLines([0, await getAmountOfLinesToClean(waitingMessage.message)*-1]);
   
   if (!skipToNewlyCreatedArchive && backToMenuAfterCreatedArchive) {
     return global.command = "backToMainMenu";
@@ -1646,22 +1724,20 @@ async function createCommand() {
       const { default: confirm } = await import("@inquirer/confirm");
       asyncImports.confirm = confirm;
     }
+    const message = 'Do you want to change archive (y) or go back to menu (n)?';
     const answer = await promptWithKeyPress("quitOnly", () => {
       return asyncImports.confirm({ 
-        message: 'Do you want to change archive (y) or go back to menu (n)?',
+        message: message,
         default: true
       })
     }, false);
     addRemove_Keypress("close")
+    clearLastLines([0, await getAmountOfLinesToClean(message)*-1])
     if (answer) {
-      clearLastLines([0, -1])
       return {
         selected: resolve(nameOfArchive)
       }
-    } else {
-      clearLastLines([0, -1])
-      return global.command = "backToMainMenu";
-    }
+    } else return global.command = "backToMainMenu";
   }
 }
 async function openCommand(list, archiveFile) {
@@ -1672,13 +1748,14 @@ async function openCommand(list, archiveFile) {
   delete global.command;
   
   if (list.selected.length < 1) {
+    const message = normalYellow+"Nothing was selected, cannot open anything\n"+normal;
     await inquirer.prompt({
       name: "key",
       type: "press-to-continue",
       anyKey: true,
-      pressToContinueMessage: normalYellow+"Nothing was selected, cannot open anything\n"+normal
+      pressToContinueMessage: message
     })
-    return clearLastLines([0, -1]);
+    return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   // Directory detection
   const regexSlash = new RegExp(`${typeOfSlash}$`, "m");
@@ -1731,7 +1808,7 @@ async function openCommand(list, archiveFile) {
         "-o"+tmpArchiveDirectory
       ])
       await waitingMessage.close()
-      clearLastLines([0, -1])
+      clearLastLines([0, (await getAmountOfLinesToClean(waitingMessage.message)-1)*-1]);
     }
     if (platform === "darwin") arrayOfFiles.push(resolve(tmpArchiveDirectory, selected))
   }
@@ -1790,14 +1867,15 @@ async function helpCommand() {
     allShortcuts.join("\n")+"\n";
   
   console.log(stringToClean);
+  const message = "Press enter to go back to main menu...\n";
   await inquirer.prompt({
     name: "key",
     type: "press-to-continue",
-    pressToContinueMessage: "Press enter to go back to main menu...\n",
+    pressToContinueMessage: message,
     enter: true
   })
   return clearLastLines([
-    0, (await getAmountOfLinesToClean(stringToClean)+1)*-1
+    0, await getAmountOfLinesToClean(stringToClean+message)*-1
   ]);
 }
 
