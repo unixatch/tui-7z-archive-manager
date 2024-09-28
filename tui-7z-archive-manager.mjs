@@ -90,6 +90,17 @@ const asyncImports = {
   confirm: "",
   editor: ""
 }
+const supportedArchivesRegex = {
+  // Limited support message for certain archives
+  limited: /^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m,
+  /*
+    It's all the supported extension listed in
+    7zip's "i" command, that is: "7z i"
+  */
+  complete: /^\.(?:7z|zip|zipx|jar|xpi|odt|ods|docx|xlsx|epu|ipa|appx|gz|gzip|tgz|tpz|apk|bz2|bzip2|tbz2|tbz|tar|rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|wim|swm|esd|ppkg|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|swf|ova|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|xz|txz|liz|tliz|lz|tlz|lz4|tlz4|lz5|tlz5|zst|tzstd)$/m,
+  // Creation of archives is limited to only file types below
+  creation: /^\.(?:7z|bz2|bzip2|tbz2|tbz|gz|gzip|tgz|tpz|apk|tar|ova|zip|zipx|jar|xpi|odt|ods|docx|xlsx|epub|ipa|appx|liz|tliz|lz4|tlz4|lz5|tlz5|zst|tzstd|wim|swm|esd|ppkg|xz|txz)$/m
+}
 let onlyDirectories, 
     onlyFiles,
     mappedFSStructure,
@@ -180,7 +191,7 @@ async function getArchivePath() {
           It's all the supported extension listed in
           7zip's "i" command, that is: "7z i"
         */
-        if (!/^\.(?:7z|zip|zipx|jar|xpi|odt|ods|docx|xlsx|epu|ipa|appx|gz|gzip|tgz|tpz|apk|bz2|bzip2|tbz2|tbz|tar|rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|wim|swm|esd|ppkg|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|swf|ova|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|xz|txz|liz|tliz|lz|tlz|lz4|tlz4|lz5|tlz5|zst|tzstd)$/m.test(extname(selected))) {
+        if (!supportedArchivesRegex.complete.test(extname(selected))) {
           return "It's not a supported archive";
         }
         return true;
@@ -432,7 +443,7 @@ async function mainMenu(refresh, archiveFilePassed) {
     archiveFile = await createMap();
     firstTime = false;
     // Limited support message for certain archives
-    if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+    if (supportedArchivesRegex.limited.test(extname(archiveFile.selected))) {
       global.hasLimitedSupport = true;
       console.log(dimYellow+`The archive ${italics+basename(archiveFile.selected)+normal+dimYellow} has limited support from 7zip`+normal);
     }
@@ -459,7 +470,7 @@ async function mainMenu(refresh, archiveFilePassed) {
   }
   if (global.command === "changeCommand") {
     // Limited support message for certain archives
-    if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+    if (supportedArchivesRegex.limited.test(extname(archiveFile.selected))) {
       console.log(dimYellow+`The archive ${italics+basename(archiveFile.selected)+normal+dimYellow} has limited support from 7zip`+normal);
       global.hasLimitedSupport = true;
     }
@@ -733,7 +744,7 @@ async function deleteCommand(list, archiveFile) {
   }
   delete global.command;
   // Limited support message for certain archives
-  if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+  if (supportedArchivesRegex.limited.test(extname(archiveFile.selected))) {
     if (asyncImports.pause === "") {
       const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
       inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
@@ -811,7 +822,7 @@ async function cutCommand(list, archiveFile) {
   }
   delete global.command;
   // Limited support message for certain archives
-  if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+  if (supportedArchivesRegex.limited.test(extname(archiveFile.selected))) {
     if (asyncImports.pause === "") {
       const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
       inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
@@ -904,7 +915,7 @@ async function addCommand(list, archiveFile, skipToSection) {
   addRemove_Keypress("close");
   delete global.command;
   // Limited support message for certain archives
-  if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+  if (supportedArchivesRegex.limited.test(extname(archiveFile.selected))) {
     if (asyncImports.pause === "") {
       const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
       inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
@@ -1369,7 +1380,7 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
   }
   
   // Limited support message for certain archives
-  if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+  if (supportedArchivesRegex.limited.test(extname(archiveFile.selected))) {
     if (asyncImports.pause === "") {
       const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
       inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
@@ -1593,7 +1604,7 @@ async function changeArchive(archiveFile) {
           It's all the supported extension listed in
           7zip's "i" command, that is: "7z i"
         */
-        if (!/^\.(?:7z|zip|zipx|jar|xpi|odt|ods|docx|xlsx|epu|ipa|appx|gz|gzip|tgz|tpz|apk|bz2|bzip2|tbz2|tbz|tar|rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|wim|swm|esd|ppkg|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|swf|ova|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|xz|txz|liz|tliz|lz|tlz|lz4|tlz4|lz5|tlz5|zst|tzstd)$/m.test(extname(selected))) {
+        if (!supportedArchivesRegex.complete.test(extname(selected))) {
           return "It's not a supported archive";
         }
         return true;
@@ -1762,7 +1773,7 @@ async function createCommand() {
             return "An extension is needed"
           }
           // Creation of archives is limited to only file types below
-          if (!/^\.(?:7z|bz2|bzip2|tbz2|tbz|gz|gzip|tgz|tpz|apk|tar|ova|zip|zipx|jar|xpi|odt|ods|docx|xlsx|epub|ipa|appx|liz|tliz|lz4|tlz4|lz5|tlz5|zst|tzstd|wim|swm|esd|ppkg|xz|txz)$/m.test(extname(str))) {
+          if (!supportedArchivesRegex.creation.test(extname(str))) {
             return "Not a valid file type"
           }
           return true;
