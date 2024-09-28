@@ -60,18 +60,12 @@ const {
   getStringList,
   promptWithKeyPress,
   checkTypesFromConfig,
-  TreePrompt,
-  inquirerFileTreeSelection,
-  PressToContinuePrompt,
   execute7zCommand,
   getAmountOfLinesToClean
 } = await import("./utils/utils.mjs");
 const { default: JSONConfigPath } = await import("./createConfigJSON.mjs");
 
 const { default: inquirer } = await import("inquirer");
-inquirer.registerPrompt("file-tree-selection", inquirerFileTreeSelection)
-inquirer.registerPrompt("tree", TreePrompt)
-inquirer.registerPrompt('press-to-continue', PressToContinuePrompt);
 class waitingMessagePrompt {
   constructor(message){
     this.message = message;
@@ -89,6 +83,9 @@ class waitingMessagePrompt {
 }
 const asyncImports = {
   select: "",
+  tree: "",
+  treeSelection: "",
+  pause: "",
   input: "",
   confirm: "",
   editor: ""
@@ -162,6 +159,11 @@ async function getArchivePath() {
     };
   }
   
+  if (asyncImports.treeSelection === "") {
+    const { default: treeSelection } = await import("./utils/prompts/file-tree-modified.mjs");
+    inquirer.registerPrompt("file-tree-selection", treeSelection)
+    delete asyncImports.treeSelection
+  }
   const message = "Choose an archive:";
   const archiveFile = await promptWithKeyPress("quitOnly", () => {
     return inquirer.prompt({
@@ -464,6 +466,11 @@ async function mainMenu(refresh, archiveFilePassed) {
     delete global.command
   }
   
+  if (asyncImports.tree === "") {
+    const { default: TreePrompt } = await import("./utils/prompts/tree-prompt-modified.mjs");
+    inquirer.registerPrompt("tree", TreePrompt)
+    delete asyncImports.tree
+  }
   const thingsToClean = inquirer.prompt({
     type: "tree",
     message: "Archive: "+basename(archiveFile.selected),
@@ -727,6 +734,11 @@ async function deleteCommand(list, archiveFile) {
   delete global.command;
   // Limited support message for certain archives
   if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const message = normalYellow+"Cannot delete because of limited 7zip support for this archive format\n"+normal;
     await inquirer.prompt({
       name: "key",
@@ -737,6 +749,11 @@ async function deleteCommand(list, archiveFile) {
     return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   if (list.selected.length < 1) {
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const message = normalYellow+"Nothing was selected, cannot delete anything\n"+normal;
     await inquirer.prompt({
       name: "key",
@@ -778,6 +795,11 @@ async function deleteCommand(list, archiveFile) {
     if (!answer) return;
   }
   
+  if (asyncImports.pause === "") {
+    const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+    inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+    delete asyncImports.pause
+  }
   const waitingMessage = new waitingMessagePrompt(gray+"Deleting the selected 📄/📂, might take a while..."+normal+"\n");
   await execute7zCommand(["d", archiveFile.selected, ...list.selected])
   await waitingMessage.close()
@@ -790,6 +812,11 @@ async function cutCommand(list, archiveFile) {
   delete global.command;
   // Limited support message for certain archives
   if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const message = normalYellow+"Cannot move because of limited 7zip support for this archive format\n"+normal;
     await inquirer.prompt({
       name: "key",
@@ -800,6 +827,11 @@ async function cutCommand(list, archiveFile) {
     return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   if (list.selected.length < 1) {
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const message = normalYellow+"Nothing was selected, cannot move anything\n"+normal;
     await inquirer.prompt({
       name: "key",
@@ -838,6 +870,11 @@ async function cutCommand(list, archiveFile) {
   
   clearLastLines([0, await getAmountOfLinesToClean(message)*-1])
   mappedFSStructure.set("surface", surface)
+  if (asyncImports.pause === "") {
+    const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+    inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+    delete asyncImports.pause
+  }
   const waitingMessage = new waitingMessagePrompt(gray+"Moving the selected 📄/📂, might take a while..."+normal+"\n")
   // Moving part
   for (const path of list.selected) {
@@ -868,6 +905,11 @@ async function addCommand(list, archiveFile, skipToSection) {
   delete global.command;
   // Limited support message for certain archives
   if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const message = normalYellow+"Cannot add because of limited 7zip support for this archive format\n"+normal
     await inquirer.prompt({
       name: "key",
@@ -931,6 +973,11 @@ async function addCommand(list, archiveFile, skipToSection) {
   }
   
   if (action === "file-selection") {
+    if (asyncImports.treeSelection === "") {
+      const { default: treeSelection } = await import("./utils/prompts/file-tree-modified.mjs");
+      inquirer.registerPrompt("file-tree-selection", treeSelection)
+      delete asyncImports.treeSelection
+    }
     // Recursive function to prevent an empty selection
     async function getFromFs() {
       const messageOfPicker = "Pick the file or folder:";
@@ -956,6 +1003,11 @@ async function addCommand(list, archiveFile, skipToSection) {
       
       if (fromFs.selection.length === 0) {
         clearLastLines([0, await getAmountOfLinesToClean(messageOfPicker)*-1]);
+        if (asyncImports.pause === "") {
+          const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+          inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+          delete asyncImports.pause
+        }
         const message = yellow+"You have to select something...\n"+normal;
         await promptWithKeyPress("quitPlusEsc", () => {
           return inquirer.prompt({
@@ -988,6 +1040,11 @@ async function addCommand(list, archiveFile, skipToSection) {
     const fromFs = await getFromFs();
     if (global.command === "backToMainMenu") return addCommand(list, archiveFile);
     
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const waitingMessage = new waitingMessagePrompt(gray+"Adding the selected 📄/📂, might take a while..."+normal+"\n")
     await execute7zCommand(["a", archiveFile.selected, ...fromFs.selection])
     await waitingMessage.close()
@@ -1078,6 +1135,11 @@ async function addCommand(list, archiveFile, skipToSection) {
         ? await getAmountOfLinesToClean(messageOfFilename+"\n"+messageOfFileContent)*-1
         : await getAmountOfLinesToClean(messageOfAddModeSelection+"\n"+messageOfFilename+"\n"+messageOfFileContent)*-1
     ])
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const waitingMessage = new waitingMessagePrompt(gray+"Adding the new 📄, might take a while..."+normal+"\n")
     // Creation part
     let dedicatedTmpDir = resolve(tmpdir(), "7z-archive-manager");
@@ -1148,6 +1210,11 @@ async function addCommand(list, archiveFile, skipToSection) {
     ])
     if (global.command === "backToMainMenu") return addCommand(list, archiveFile);
     
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const waitingMessage = new waitingMessagePrompt(gray+"Adding the new 📂, might take a while..."+normal+"\n")
     const dedicatedTmpDir = resolve(tmpdir(), "7z-archive-manager");
     mkdirSync(
@@ -1195,6 +1262,11 @@ async function extractCommand(list, archiveFile, skipToSection) {
   }
   
   const specificThings = (list.selected.length > 0) ? list.selected : [""];
+  if (asyncImports.pause === "") {
+    const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+    inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+    delete asyncImports.pause
+  }
   let waitingMessage;
   if (answer) {
     waitingMessage = new waitingMessagePrompt(gray+"Extracting the selected 📄/📂, might take a while..."+normal+"\n");
@@ -1208,6 +1280,11 @@ async function extractCommand(list, archiveFile, skipToSection) {
       )
     ])
   } else {
+    if (asyncImports.treeSelection === "") {
+      const { default: treeSelection } = await import("./utils/prompts/file-tree-modified.mjs");
+      inquirer.registerPrompt("file-tree-selection", treeSelection)
+      delete asyncImports.treeSelection
+    }
     const message = "Pick the extraction destination:";
     const extractLocation = await promptWithKeyPress("quitPlusEsc", () => {
       return inquirer.prompt({
@@ -1293,6 +1370,11 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
   
   // Limited support message for certain archives
   if (/^\.(?:rar|cab|ar|a|dep|lib|arj|z|taz|cpio|rpm|deb|lzh|lha|chm|chi|chq|chw|hxs|hxi|hxr|hxq|hxw|iso|msi|msp|doc|xls|ppt|exe|apm|cramfs|dmg|elf|ext|ext2|ext3|ext4|fat|img|flv|gpt|mpr|hfs|hfsx|ihex|lzma|lzma86|macho|mslz|mub|nsis|dll|sys|te|pmd|qcow|qcow2|qcow2c|squashfs|udf|scap|uefif|vdi|vhd|vmdk|xar|pkg|xip|lz|tlz)$/m.test(extname(archiveFile.selected))) {
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const message = normalYellow+"Cannot rename because of limited 7zip support for this archive format\n"+normal;
     await inquirer.prompt({
       name: "key",
@@ -1303,6 +1385,11 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
     return clearLastLines([0, (await getAmountOfLinesToClean(message)-1)*-1]);
   }
   if (list.selected.length < 1) {
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const message = normalYellow+"Nothing was selected, cannot rename anything\n"+normal;
     await inquirer.prompt({
       name: "key",
@@ -1385,6 +1472,11 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
         newName = parse(newName).name+"(1)"+parse(newName).ext;
         break;
       }
+    }
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
     }
     const waitingMessage = new waitingMessagePrompt(gray+"Renaming the selected 📄/📂, might take a while..."+normal+"\n")
     await execute7zCommand([
@@ -1469,12 +1561,22 @@ async function renameCommand(list, archiveFile, onlyArchiveName = false) {
   }, "")
   // In case it skipped all of the selected 📂/📄s
   if (renameArray.length === 0) return;
+  if (asyncImports.pause === "") {
+    const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+    inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+    delete asyncImports.pause
+  }
   const waitingMessage = new waitingMessagePrompt(gray+"Renaming the selected 📄/📂, might take a while..."+normal+"\n");
   await execute7zCommand(["rn", archiveFile.selected, ...renameArray])
   await waitingMessage.close()
   return clearLastLines([0, (await getAmountOfLinesToClean(waitingMessage.message)-1)*-1]);
 }
 async function changeArchive(archiveFile) {
+  if (asyncImports.treeSelection === "") {
+    const { default: treeSelection } = await import("./utils/prompts/file-tree-modified.mjs");
+    inquirer.registerPrompt("file-tree-selection", treeSelection)
+    delete asyncImports.treeSelection
+  }
   const message = "Choose the new archive:";
   const newArchiveFile = await promptWithKeyPress("quitPlusEsc", () => {
     return inquirer.prompt({
@@ -1523,6 +1625,11 @@ async function infoCommand(list, archiveFile, infoOnArchive = false) {
   addRemove_Keypress("close");
   delete global.command;
   if (list.selected.length < 1 && !infoOnArchive) {
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const message = normalYellow+"Nothing was selected, cannot show info about anything\n"+normal;
     await inquirer.prompt({
       name: "key",
@@ -1538,6 +1645,12 @@ async function infoCommand(list, archiveFile, infoOnArchive = false) {
     const onlyArchiveInfo = "\n"+archiveInfoString
       .replace(/.*Listing archive: .*\n--\n/s, "")
       .replace(/\n-{10}\n/, "");
+    
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     console.log(onlyArchiveInfo)
     await inquirer.prompt({
       name: "key",
@@ -1550,6 +1663,11 @@ async function infoCommand(list, archiveFile, infoOnArchive = false) {
     ]);
   }
   
+  if (asyncImports.pause === "") {
+    const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+    inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+    delete asyncImports.pause
+  }
   async function infoNavigation(itemsList, itemNumber = 0) {
     if (!itemsList instanceof Array) {
       throw new TypeError("itemsList must be an array")
@@ -1664,6 +1782,11 @@ async function createCommand() {
     }
   } else nameOfArchive = global.skipToCreateArchive;
   
+  if (asyncImports.treeSelection === "") {
+    const { default: treeSelection } = await import("./utils/prompts/file-tree-modified.mjs");
+    inquirer.registerPrompt("file-tree-selection", treeSelection)
+    delete asyncImports.treeSelection
+  }
   // Recursive function to prevent an empty selection
   async function getFromFs() {
     const messageOfPicker = "Pick the file/s or folder/s:";
@@ -1684,6 +1807,11 @@ async function createCommand() {
     
     if (fromFs.selection.length === 0) {
       clearLastLines([0, await getAmountOfLinesToClean(messageOfPicker)*-1]);
+      if (asyncImports.pause === "") {
+        const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+        inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+        delete asyncImports.pause
+      }
       const message = yellow+"You have to select something...\n"+normal;
       await promptWithKeyPress("quitPlusEsc", () => {
         return inquirer.prompt({
@@ -1705,6 +1833,11 @@ async function createCommand() {
   }
   const itemsToInsertInArchive = await getFromFs();
   
+  if (asyncImports.pause === "") {
+    const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+    inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+    delete asyncImports.pause
+  }
   const waitingMessage = new waitingMessagePrompt(gray+`Creating "${nameOfArchive}", might take a while...`+normal+"\n")
   await execute7zCommand(["a", nameOfArchive, ...itemsToInsertInArchive.selection])
   await waitingMessage.close()
@@ -1748,6 +1881,11 @@ async function openCommand(list, archiveFile) {
   delete global.command;
   
   if (list.selected.length < 1) {
+    if (asyncImports.pause === "") {
+      const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+      inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+      delete asyncImports.pause
+    }
     const message = normalYellow+"Nothing was selected, cannot open anything\n"+normal;
     await inquirer.prompt({
       name: "key",
@@ -1763,6 +1901,11 @@ async function openCommand(list, archiveFile) {
     const isDir = (selected.match(regexSlash)) ? true : false;
     
     if (isDir) {
+      if (asyncImports.pause === "") {
+        const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+        inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+        delete asyncImports.pause
+      }
       const msg = `${normalYellow}"${selected}" is a directory, thus it doesn't make sense to open\n${normal}`;
       await inquirer.prompt({
         name: "key",
@@ -1800,6 +1943,11 @@ async function openCommand(list, archiveFile) {
   for (const selected of list.selected) {
     // Extract only if not done at least once
     if (!existsSync(resolve(tmpArchiveDirectory, selected))) {
+      if (asyncImports.pause === "") {
+        const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+        inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+        delete asyncImports.pause
+      }
       const waitingMessage = new waitingMessagePrompt(gray+"Extracting the selected 📄/📂, might take a while..."+normal+"\n");
       await execute7zCommand([
         "x",
@@ -1866,6 +2014,11 @@ async function helpCommand() {
     `\n${underline}7zTuiManager${normal}\n  ${dimGrayBold}A tui manager for organising archives${normal}\n\n` +
     allShortcuts.join("\n")+"\n";
   
+  if (asyncImports.pause === "") {
+    const { default: PressToContinuePrompt } = await import("./utils/prompts/press-to-continue-modified.mjs");
+    inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
+    delete asyncImports.pause
+  }
   console.log(stringToClean);
   const message = "Press enter to go back to main menu...\n";
   await inquirer.prompt({
