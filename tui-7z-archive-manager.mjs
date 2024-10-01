@@ -594,8 +594,9 @@ async function mainMenu(refresh, archiveFilePassed) {
         // Just in case it still exists
         delete global.command
         if (asyncImports.select === "") {
-          const { default: select } = await import("@inquirer/select");
-          asyncImports.select = select;
+          const { default: select } = await import("./utils/prompts/inquirer-select.mjs");
+          inquirer.registerPrompt("select", select)
+          delete asyncImports.select
         }
         
         const message = "Choose what to do:";
@@ -654,31 +655,21 @@ async function mainMenu(refresh, archiveFilePassed) {
             description: "Get information about the selected 📄/📂 inside the archive"
           }
         ]
-        const selectedCommand = await promptWithKeyPress("quitPlusEsc", () => {
-          return asyncImports.select({
+        let selectedCommand = await promptWithKeyPress("quitPlusEsc", () => {
+          return inquirer.prompt({
+            type: "select",
+            name: "selected",
             message: message,
             choices: choices,
-            pageSize: inquirerPagePromptsSize,
-            theme: {
-              style: {
-                // Removes the blue answer on the right of the message 
-                // for easier cleaning of the line
-                answer: (str) => ""
-              }
-            }
+            pageSize: inquirerPagePromptsSize
           })
-        }, false);
-        if (global.command === "selectPromptQuit") {
-          clearLastLines([0, (await getAmountOfLinesToClean(message)+choices.length)*-1])
-          return process.exit();
-        }
-        if (global.command === "backToMainMenu") {
-          clearLastLines([0, (await getAmountOfLinesToClean(message)+choices.length)*-1])
-          return mainMenu(false, archiveFile);
-        }
-        
+        });
+        addRemove_Keypress("close")
+        selectedCommand = selectedCommand.selected;
         // Cleans the select prompt
         clearLastLines([0, await getAmountOfLinesToClean(message)*-1])
+        if (global.command === "backToMainMenu") return mainMenu(false, archiveFile);
+        
         switch (selectedCommand) {
           case 'help-command':
             await helpCommand();
@@ -942,8 +933,9 @@ async function addCommand(list, archiveFile, skipToSection) {
   } else skipToSection = false;
   if (!skipToSection) {
     if (asyncImports.select === "") {
-      const { default: select } = await import("@inquirer/select");
-      asyncImports.select = select;
+      const { default: select } = await import("./utils/prompts/inquirer-select.mjs");
+      inquirer.registerPrompt("select", select)
+      delete asyncImports.select
     }
     messageOfAddModeSelection = "Choose how do you want to add:";
     const choices = [
@@ -964,23 +956,18 @@ async function addCommand(list, archiveFile, skipToSection) {
       }
     ]
     action = await promptWithKeyPress("quitPlusEsc", () => {
-      return asyncImports.select({
+      return inquirer.prompt({
+        type: "select",
+        name: "selected",
         message: messageOfAddModeSelection,
         choices: choices,
-        theme: {
-          style: {
-            // Removes the blue answer on the right of the message 
-            // for easier cleaning of the line
-            answer: (str) => ""
-          }
-        }
+        pageSize: inquirerPagePromptsSize
       })
-    }, false);
-    if (global.command === "selectPromptQuit") {
-      clearLastLines([0, (await getAmountOfLinesToClean(messageOfAddModeSelection)+choices.length+1)*-1])
-      return process.exit();
-    }
-    if (global.command === "backToMainMenu") return clearLastLines([0, (await getAmountOfLinesToClean(messageOfAddModeSelection)+choices.length+1)*-1]);
+    });
+    addRemove_Keypress("close")
+    action = action.selected;
+    
+    if (global.command === "backToMainMenu") return clearLastLines([0, await getAmountOfLinesToClean(messageOfAddModeSelection)*-1]);
   }
   
   if (action === "file-selection") {

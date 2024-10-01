@@ -199,10 +199,6 @@ const addRemove_Keypress = (request, prompt, isCustomPrompt = true) => {
       (isCustomPrompt) 
         ? prompt.ui.close()
         : prompt.cancel()
-      if (global.isSelectPrompt) {
-        delete global.isSelectPrompt
-        return global.command = "selectPromptQuit";
-      }
       process.stdin.removeListener("keypress", quitPress_plusEsc)
       process.exit();
     }
