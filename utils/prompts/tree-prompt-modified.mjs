@@ -74,8 +74,8 @@ class TreePrompt extends oldTreePrompt {
     events.keypress
     .pipe(
       filter(({ key }) => {
-        // Prevents double renders when unneeded
         switch (key.sequence) {
+          // Prevents double renders when unneeded
           case "\x1B[D": // Left
           case "\x1B[C": // Right
           case "\x1B[A": // Up
@@ -85,6 +85,24 @@ class TreePrompt extends oldTreePrompt {
           case "\r":     // Enter
           case "\x06":   // Ctrl + f
             return false;
+          
+          // HOME
+          case "\x1B[H":
+            this.keyPressed = "home";
+            return true;
+          // END
+          case "\x1B[F":
+            this.keyPressed = "end";
+            return true;
+            
+          // Pageup
+          case "\x1B[5~":
+            this.keyPressed = "pageUp";
+            return true;
+          // Pagedown
+          case "\x1B[6~":
+            this.keyPressed = "pageDown";
+            return true;
           
           case " ":
             return global.searching;
@@ -110,7 +128,7 @@ class TreePrompt extends oldTreePrompt {
 		events.spaceKey
 		.pipe(takeUntil(validation.success))
 		.forEach(this.onSpaceKey.bind(this))
-
+		
     // Tab key
 		function normalizeKeypressEvents(value, key) {
 			return { value: value, key: key || {} };
@@ -355,7 +373,19 @@ class TreePrompt extends oldTreePrompt {
 	onKeypress() {
 	  if (global.searching) {
 	    this.line = this.rl.line;
-	    this.render();
+	    return this.render();
+	  }
+	  switch (this.keyPressed) {
+	    case "home":
+    	  this.active = this.shownList[0];
+	      return this.render();
+	    case "end":
+	      this.active = this.shownList[this.shownList.length-1];
+	      return this.render();
+	    case "pageUp":
+	      return this.moveActive(-3);
+	    case "pageDown":
+	      return this.moveActive(3);
 	  }
 	}
 	onSpaceKey() {

@@ -46,8 +46,16 @@ class SelectPrompt extends BasePrompt {
 		.pipe(takeUntil(validation.success))
 		.forEach(this.onDownKey.bind(this));
 
-		// Any alphanumeric
+		// Any alphanumeric or Pageup/Pagedown
 		events.keypress.pipe(filter(({ key }) => {
+		  if (key.sequence === "\x1B[5~") {
+		    this.keyPressed = "pageUp";
+		    return true;
+		  }
+		  if (key.sequence === "\x1B[6~") {
+		    this.keyPressed = "pageDown";
+		    return true;
+		  }
 		  const regex = /^[a-zA-Z0-9]$/;
 		  
 		  if (key.sequence.match(regex)) {
@@ -162,6 +170,9 @@ class SelectPrompt extends BasePrompt {
 	}
 	
 	onKeypress() {
+	  if (this.keyPressed === "pageUp") return this.moveActive(-3);
+	  if (this.keyPressed === "pageDown") return this.moveActive(3);
+	  
 	  // Select based on letter matching
 	  const newActives = this.shownList.filter(obj => obj.name[0].toUpperCase() === this.keyPressed.toUpperCase());
     // In case it's the same group of items that match the letter
