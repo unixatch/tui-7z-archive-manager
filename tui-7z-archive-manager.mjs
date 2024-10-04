@@ -212,22 +212,17 @@ async function createMap(archiveFilePassed) {
   
   console.log(gray+"Loading list..."+normal)
   let listOfArchive = await getStringList(archiveFile.selected);
-  // Gets only Paths and the Attributes
-  // or Paths and Folder in case it's not 7z
+  // Gets only Paths and Attributes or Folders
   listOfArchive = listOfArchive
     .replaceAll(
-      (extname(archiveFile.selected) === ".7z")
-        ? /^(?!Path.*|Attributes.*).*\n?/gm
-        : /^(?!Path.*|Folder.*).*\n?/gm, "");
+      /^(?!Path.*|Attributes.*|Folder.*).*\n?/gm,
+      ""
+    );
 
   const regexes = [
-    (extname(archiveFile.selected) === ".7z") 
-      ? /Path = (.*)\nAttributes = D/g // 7zip
-      : /Path = (.*)\nFolder = \+/g, // Others
-    (extname(archiveFile.selected) === ".7z") 
-      ? /Path = (.*)\nAttributes = A/g // 7zip
-      : /Path = (.*)\nFolder = -/g // Others
-  ]
+    /Path = (.*)\n(?:Attributes = D|Folder = \+)/g,
+    /Path = (.*)\n(?:Attributes = A|Folder = -)/g
+  ];
   mappedFSStructure = new Map();
   onlyDirectories = Array.from(
     listOfArchive.matchAll(regexes[0]),
