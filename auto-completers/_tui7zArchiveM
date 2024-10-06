@@ -1,0 +1,96 @@
+#compdef tui7zArchiveM
+#  Copyright (C) 2024  unixatch
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with tui-7z-archive-manager.  If not, see <https://www.gnu.org/licenses/>.
+
+__tui7zArchiveM() {
+  local curcontext="$curcontext" prev
+  typeset -A opt_args
+  prev=$words[CURRENT-1]
+  
+  case $prev in
+    --path | -p)
+      _files
+      return 0
+    ;;
+    --pagesize | -ps)
+      local numbers=$(for i in {0..100} ;do echo -n " $i" ;done)
+      _arguments "*: :($numbers)"
+      return 0
+    ;;
+    -*)
+      # Short versions only
+      _arguments '*::(
+        p[path to archive]
+        s[skip newly created archive]
+        ps[size of prompts]
+        c[create new archive]
+        y[auto-confirm]
+        b[get back to previous archive]
+        r[search recursively]
+        nr[search only opened folders]
+        h[help text]
+        hs[help text for shortcuts]
+        v[version number]
+      )'
+      return 0
+    ;;
+    --*)
+      # Full versions
+      _arguments '*::(
+        path[path to archive]
+        skip[skip newly created archive]
+        pagesize[size of prompts]
+        create[create new archive]
+        yes[auto-confirm]
+        back[get back to previous archive]
+        recursive[search recursively]
+        no-recursive[search only opened folders]
+        help[help text]
+        help-shortcuts[help text for shortcuts]
+        version[version number]
+      )'
+      return 0
+    ;;
+    *)
+      # Full and short versions
+      _arguments '*: :(
+        --path[path to archive]
+        -p[path to archive]
+        --skip[skip newly created archive]
+        -s[skip newly created archive]
+        --pagesize[size of prompts]
+        -ps[size of prompts]
+        --create[create new archive]
+        -c[create new archive]
+        --yes[auto-confirm]
+        -y[auto-confirm]
+        --back[get back to previous archive]
+        -b[get back to previous archive]
+        --recursive[search recursively]
+        -r[search recursively]
+        --no-recursive[search only opened folders]
+        -nr[search only opened folders]
+        --help[help text]
+        -h[help text]
+        --help-shortcuts[help text for shortcuts]
+        -hs[help text for shortcuts]
+        --version[version number]
+        -v[version number]
+      )'
+      return 0
+    ;;
+  esac
+}
+__tui7zArchiveM

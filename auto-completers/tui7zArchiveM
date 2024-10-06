@@ -1,0 +1,67 @@
+#  Copyright (C) 2024  unixatch
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with tui-7z-archive-manager.  If not, see <https://www.gnu.org/licenses/>.
+
+_tui7zArchiveM() {
+  # Enables file/folder completion when COMPREPLY is empty
+  compopt -o default -o bashdefault
+  case $3 in
+    --path | -p)
+      COMPREPLY=()
+      return 0
+    ;;
+    --pagesize | -ps)
+      local numbers=$(for i in {0..100} ;do echo -n " $i" ;done)
+      COMPREPLY=(
+        $(compgen -W "$numbers" -- "$2")
+      )
+      return 0
+    ;;
+    *)
+      # Disables default file/folder completion
+      compopt +o default +o bashdefault
+      COMPREPLY=()
+    ;;
+  esac
+
+  if [[ $2 == -* ]]; then
+    COMPREPLY=(
+      $(compgen -W '
+          --path
+          -p
+          --skip
+          -s
+          --pagesize
+          -ps
+          --create
+          -c
+          --yes
+          -y
+          --back
+          -b
+          --recursive
+          -r
+          --no-recursive
+          -nr
+          --help
+          -h
+          --help-shortcuts
+          -hs
+          --version
+          -v
+      ' -- "$2")
+    )
+    return 0
+  fi
+} && complete -F _tui7zArchiveM tui7zArchiveM
