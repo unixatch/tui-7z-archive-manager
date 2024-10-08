@@ -18,7 +18,7 @@
 import { lstatSync, readFileSync, writeFileSync } from "fs"
 import { join, resolve, extname, sep } from "path"
 import { __dirname } from "./utils/cli_utils.mjs"
-import JSONConfigPath from "./createConfigJSON.mjs"
+import JSONConfigPath from "./postinstall.mjs"
 import { platform, env } from "process"
 
 

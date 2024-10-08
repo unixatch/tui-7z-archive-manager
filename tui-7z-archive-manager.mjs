@@ -63,7 +63,7 @@ const {
   execute7zCommand,
   getAmountOfLinesToClean
 } = await import("./utils/utils.mjs");
-const { default: JSONConfigPath } = await import("./createConfigJSON.mjs");
+const { default: JSONConfigPath } = await import("./postinstall.mjs");
 
 const { default: inquirer } = await import("inquirer");
 class waitingMessagePrompt {

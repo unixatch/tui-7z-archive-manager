@@ -32,8 +32,8 @@
   },
   "scripts": {
     "test": "node tui-7z-archive-manager.mjs",
-    "prepare": "node createConfigJSON.mjs",
-    "postinstall": "node createConfigJSON.mjs"
+    "prepare": "node postinstall.mjs",
+    "postinstall": "node postinstall.mjs"
   },
   "author": "unixatch",
   "license": "GPL-2.0-or-later",

@@ -52,7 +52,7 @@ const completePath = join(configFileFolder, "config.json");
 
 // If it's trying to import,
 // do not run whatever it's inside this code block
-if (basename(argv[1]).includes("createConfigJSON.mjs")) {
+if (basename(argv[1]).includes("postinstall.mjs")) {
   const {
     existsSync,
     mkdirSync,
