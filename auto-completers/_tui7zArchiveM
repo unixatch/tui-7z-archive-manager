@@ -15,8 +15,9 @@
 #    along with tui-7z-archive-manager.  If not, see <https://www.gnu.org/licenses/>.
 
 __tui7zArchiveM() {
-  local curcontext="$curcontext" prev
+  local curcontext="$curcontext" cur prev
   typeset -A opt_args
+  cur=$words[CURRENT]
   prev=$words[CURRENT-1]
   
   case $prev in
@@ -29,68 +30,36 @@ __tui7zArchiveM() {
       _arguments "*: :($numbers)"
       return 0
     ;;
-    -*)
-      # Short versions only
-      _arguments '*::(
-        p[path to archive]
-        s[skip newly created archive]
-        ps[size of prompts]
-        c[create new archive]
-        y[auto-confirm]
-        b[get back to previous archive]
-        r[search recursively]
-        nr[search only opened folders]
-        h[help text]
-        hs[help text for shortcuts]
-        v[version number]
-      )'
-      return 0
-    ;;
-    --*)
-      # Full versions
-      _arguments '*::(
-        path[path to archive]
-        skip[skip newly created archive]
-        pagesize[size of prompts]
-        create[create new archive]
-        yes[auto-confirm]
-        back[get back to previous archive]
-        recursive[search recursively]
-        no-recursive[search only opened folders]
-        help[help text]
-        help-shortcuts[help text for shortcuts]
-        version[version number]
-      )'
-      return 0
-    ;;
-    *)
-      # Full and short versions
-      _arguments '*: :(
-        --path[path to archive]
-        -p[path to archive]
-        --skip[skip newly created archive]
-        -s[skip newly created archive]
-        --pagesize[size of prompts]
-        -ps[size of prompts]
-        --create[create new archive]
-        -c[create new archive]
-        --yes[auto-confirm]
-        -y[auto-confirm]
-        --back[get back to previous archive]
-        -b[get back to previous archive]
-        --recursive[search recursively]
-        -r[search recursively]
-        --no-recursive[search only opened folders]
-        -nr[search only opened folders]
-        --help[help text]
-        -h[help text]
-        --help-shortcuts[help text for shortcuts]
-        -hs[help text for shortcuts]
-        --version[version number]
-        -v[version number]
-      )'
-      return 0
-    ;;
   esac
+  
+  # Full and short versions
+  [[ $cur =~ .* ]] && {
+    local all_arguments=(
+      "--path[path to archive]"
+      "-p[path to archive]"
+      "--skip[skip newly created archive]"
+      "-s[skip newly created archive]"
+      "--pagesize[size of prompts]"
+      "-ps[size of prompts]"
+      "--create[create new archive]"
+      "-c[create new archive]"
+      "--yes[auto-confirm]"
+      "-y[auto-confirm]"
+      "--back[get back to previous archive]"
+      "-b[get back to previous archive]"
+      "--recursive[search recursively]"
+      "-r[search recursively]"
+      "--no-recursive[search only opened folders]"
+      "-nr[search only opened folders]"
+      "--help[help text]"
+      "-h[help text]"
+      "--help-shortcuts[help text for shortcuts]"
+      "-hs[help text for shortcuts]"
+      "--version[version number]"
+      "-v[version number]"
+    )
+    _arguments "${all_arguments[@]}"
+    return 0
+  }
 }
 __tui7zArchiveM
