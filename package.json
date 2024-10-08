@@ -25,6 +25,9 @@
     "inquirer",
     "node"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "preferGlobal": true,
   "main": "tui-7z-archive-manager.mjs",
   "bin": {
@@ -32,6 +35,7 @@
   },
   "scripts": {
     "test": "node tui-7z-archive-manager.mjs",
+    "writeChanges": "node tools/updateChangelog_packageJson.mjs",
     "prepare": "node postinstall.mjs",
     "postinstall": "node postinstall.mjs"
   },
