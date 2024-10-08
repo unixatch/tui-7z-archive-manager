@@ -4,7 +4,7 @@ import input from "@inquirer/input"
 
 // Gets titles and descriptions only, with a separator in the middle
 const commitMessages = execSync(`
-  git --no-pager log --pretty=format:"%s%n%b%n---" main..
+  git --no-pager log --pretty=format:"- %s%n%b%n---" main..
 `).toString().split("---");
 
 
@@ -15,7 +15,7 @@ const oldChangelogNumber = changelogFile.split("\n")[0]
 let newVersion;
 try {
   newVersion = await input({
-    message: "Insert the new version number:",
+    message: `Current version: \x1b[90;1m${oldChangelogNumber}\x1b[0m\nInsert the new version number:`,
     validate: str => {
       if (oldChangelogNumber === str) return "\x1b[33mCan't use the same number again\x1b[0m";
       if (str.match(/^\d\.\d+\.\d+$/)) return true;
@@ -42,3 +42,4 @@ writeFileSync(
   "package.json", 
   JSON.stringify(packageFile, null, 2)
 )
+console.log("\x1b[32mUpdated CHANGELOG.md and package.json successfully\x1b[0m")
