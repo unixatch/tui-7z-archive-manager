@@ -1,3 +1,53 @@
+# CHANGELOG v.1.3.5
+
+- Adding a new command: **rename archive** + documentation;
+  - Added a new shortcut: **_Shift + r_**;
+
+- Added minimum **nodejs** version requirement;
+
+- Renamed _createConfigJSON.mjs_ to _postinstall.mjs_
+because it does more than it used to;
+
+- Added a new tool for writing changelogs;
+
+- Installation changes:
+  - Added **auto-completion** files installation;
+  - **bash** and **zsh** are supported;
+  - now before installing or updating, it'll ask for permission;
+  - now installations show a successuful message at the end;
+
+- Added 4 QoL keys for 3 prompts:
+  - **Home key**: goes to the top;
+  - **End key**: goes to the bottom;
+  - **Pageup key**: goes up by 3 items;
+  - **Pagedown key**: goes down by 3 items;
+
+- Simplified some regex;
+
+- Changing _select_ prompt to a DIY one
+because it couldn't clean the screen properly;
+- moved around some cleaning functions;
+
+- Moved all regexes regarding archive support to their own object for readability and performance;
+
+- More asynchronous dynamic imports:
+  - moved all modified prompts to separate files;
+  - added asynchronous imports to the main script;
+
+- Revamped line cleanups:
+  - cleanups are now dynamically calculated instead of using static integers;
+  - removed some unnecessary cleanups at the beginning;
+  - removed duplicated messages;
+
+- Fixed double rendering when closing normally;
+
+- Fixed the path parameter for Termux:
+  - **_/storage/emulated_** can't be used for permissions reasons,
+  so it replaces it with Termux's provided linked path;
+
+- Fixed the cut command since it was mistakenly using async with forEach,
+so it was changed to a _for...of_ loop instead;
+
 # CHANGELOG v.1.3.0
 
 - Added an **open** command;

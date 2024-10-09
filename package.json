@@ -1,6 +1,6 @@
 {
   "name": "tui-7z-archive-manager",
-  "version": "1.3.0",
+  "version": "1.3.5",
   "description": "A tui archive manager based on 7zip",
   "homepage": "https://github.com/unixatch/tui-7z-archive-manager",
   "repository": {
