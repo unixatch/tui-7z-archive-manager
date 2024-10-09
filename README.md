@@ -62,6 +62,7 @@ Pressing enter will show all the available commands
   - `Ctrl + e` → skips to the "same place of archive" extraction;
   - `Shift + e` → skips to the "different location" extraction;
 - `r` → rename command;
+  - `Shift + r` → rename archive command;
 - `n` → change archive command;
 - `Shift + n` → create an archive command;
 - `i` → information command;
